@@ -71,6 +71,17 @@ export default function Toolkit({
                         <path d="m5 11 9 9" />
                     </svg>
                 </ToolButton>
+                <ToolButton
+                    active={activeTool === 'text'}
+                    onClick={() => onToolChange('text')}
+                    label="Text"
+                >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="4 7 4 4 20 4 20 7" />
+                        <line x1="9" y1="20" x2="15" y2="20" />
+                        <line x1="12" y1="4" x2="12" y2="20" />
+                    </svg>
+                </ToolButton>
             </div>
 
             <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.08)', margin: '0 4px' }} />

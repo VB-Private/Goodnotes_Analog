@@ -1,5 +1,5 @@
 export type PageTemplate = 'blank' | 'squared' | 'lined'
-export type ToolType = 'pen' | 'eraser'
+export type ToolType = 'pen' | 'eraser' | 'text'
 
 export interface StrokePoint {
   x: number
@@ -15,6 +15,15 @@ export interface Stroke {
   size: number
 }
 
+export interface TextField {
+  id: string
+  x: number
+  y: number
+  text: string
+  color: string
+  fontSize: number
+}
+
 export interface Notebook {
   id: string
   title: string
@@ -27,5 +36,6 @@ export interface Page {
   notebookId: string
   template: PageTemplate
   strokes: Stroke[]
+  textFields: TextField[]
   createdAt: number
 }

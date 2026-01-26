@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType } from '../types'
+import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
 import { drawAllStrokes, getCanvasPoint, DrawOptions } from '../utils/drawing'
 import Paper from './Paper'
+import TextFieldComponent from './TextFieldComponent'
 
 interface EditablePageProps {
   page: Page
@@ -23,6 +24,7 @@ export default function EditablePage({
 }: EditablePageProps) {
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null)
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
 
   const currentOptions: DrawOptions = {
     color: activeColor,
@@ -41,7 +43,26 @@ export default function EditablePage({
   function handlePointerDown(evt: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = strokeCanvasRef.current
     if (!canvas) return
-      ; (evt.target as HTMLCanvasElement).setPointerCapture(evt.pointerId)
+
+    if (activeTool === 'text') {
+      const pt = getCanvasPoint(evt.nativeEvent, canvas)
+      const newTextField: TextField = {
+        id: crypto.randomUUID(),
+        x: pt.x,
+        y: pt.y,
+        text: '',
+        color: activeColor,
+        fontSize: activeSize
+      }
+      setJustCreatedId(newTextField.id)
+      onUpdate({
+        ...page,
+        textFields: [...(page.textFields || []), newTextField]
+      })
+      return
+    }
+
+    ; (evt.target as HTMLCanvasElement).setPointerCapture(evt.pointerId)
     const pt = getCanvasPoint(evt.nativeEvent, canvas)
     setCurrentPoints([pt])
   }
@@ -68,6 +89,20 @@ export default function EditablePage({
     }
     setCurrentPoints(null)
     onUpdate({ ...page, strokes: [...page.strokes, stroke] })
+  }
+
+  function handleTextFieldUpdate(id: string, text: string) {
+    onUpdate({
+      ...page,
+      textFields: (page.textFields || []).map((tf) => (tf.id === id ? { ...tf, text } : tf))
+    })
+  }
+
+  function handleTextFieldDelete(id: string) {
+    onUpdate({
+      ...page,
+      textFields: (page.textFields || []).filter((tf) => tf.id !== id)
+    })
   }
 
   function handlePointerCancel() {
@@ -114,7 +149,7 @@ export default function EditablePage({
             width: PAGE_WIDTH,
             height: PAGE_HEIGHT,
             touchAction: 'none',
-            cursor: 'crosshair',
+            cursor: activeTool === 'text' ? 'text' : 'crosshair',
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -122,6 +157,16 @@ export default function EditablePage({
           onPointerCancel={handlePointerCancel}
           onPointerLeave={handlePointerCancel}
         />
+        {(page.textFields || []).map((tf) => (
+          <TextFieldComponent
+            key={tf.id}
+            textField={tf}
+            onUpdate={handleTextFieldUpdate}
+            onDelete={handleTextFieldDelete}
+            onBlur={() => setJustCreatedId(null)}
+            autoFocus={tf.id === justCreatedId}
+          />
+        ))}
       </div>
     </div>
   )

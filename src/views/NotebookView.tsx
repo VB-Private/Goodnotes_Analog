@@ -66,6 +66,7 @@ export default function NotebookView() {
       notebookId,
       template,
       strokes: [],
+      textFields: [],
       createdAt: Date.now(),
     }
     await createPage(page)
