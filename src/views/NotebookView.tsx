@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebook, getPages, updateNotebook, createPage, updatePage } from '../storage/db'
-import type { Notebook, Page, PageTemplate } from '../types'
+import type { Notebook, Page, PageTemplate, ToolType } from '../types'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
+import Toolkit from '../components/Toolkit'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 
 function generateId(): string {
@@ -20,6 +21,11 @@ export default function NotebookView() {
   const [scale, setScale] = useState(1)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // Toolkit state
+  const [activeTool, setActiveTool] = useState<ToolType>('pen')
+  const [activeColor, setActiveColor] = useState('#000000')
+  const [activeSize, setActiveSize] = useState(20)
+
   useEffect(() => {
     if (!notebookId) return
     Promise.all([getNotebook(notebookId), getPages(notebookId)]).then(([nb, p]) => {
@@ -33,7 +39,7 @@ export default function NotebookView() {
     function updateScale() {
       const s = Math.min(
         1,
-        (window.innerWidth - 32) / PAGE_WIDTH,
+        (window.innerWidth - 80) / PAGE_WIDTH, // Adjusted for toolkit space
         (window.innerHeight - 120) / PAGE_HEIGHT
       )
       setScale(Math.max(0.1, s))
@@ -80,7 +86,7 @@ export default function NotebookView() {
   if (loading || !notebook) return <div>Loading…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
       <div
         style={{
           marginBottom: 16,
@@ -96,6 +102,16 @@ export default function NotebookView() {
         </button>
         <h1 style={{ margin: 0 }}>{notebook.title}</h1>
       </div>
+
+      <Toolkit
+        activeTool={activeTool}
+        activeColor={activeColor}
+        activeSize={activeSize}
+        onToolChange={setActiveTool}
+        onColorChange={setActiveColor}
+        onSizeChange={setActiveSize}
+      />
+
       <div
         ref={scrollContainerRef}
         style={{
@@ -106,6 +122,7 @@ export default function NotebookView() {
           WebkitOverflowScrolling: 'touch',
           scrollSnapType: 'y mandatory',
           paddingBottom: 56,
+          paddingRight: 60, // Space for toolkit
         }}
       >
         <div
@@ -142,7 +159,14 @@ export default function NotebookView() {
                   paddingTop: 8,
                 }}
               >
-                <EditablePage page={p} scale={scale} onUpdate={handlePageUpdate} />
+                <EditablePage
+                  page={p}
+                  scale={scale}
+                  activeTool={activeTool}
+                  activeColor={activeColor}
+                  activeSize={activeSize}
+                  onUpdate={handlePageUpdate}
+                />
               </div>
             ))
           )}

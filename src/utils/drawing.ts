@@ -1,6 +1,6 @@
 import getStroke from 'perfect-freehand'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Stroke, StrokePoint } from '../types'
+import type { Stroke, StrokePoint, ToolType } from '../types'
 
 export function getCanvasPoint(
   evt: { clientX: number; clientY: number; pressure?: number },
@@ -16,13 +16,34 @@ export function getCanvasPoint(
   }
 }
 
+export interface DrawOptions {
+  color?: string
+  size?: number
+  tool?: ToolType
+}
+
 export function drawStrokePath(
   ctx: CanvasRenderingContext2D,
   points: StrokePoint[],
-  color = '#000'
+  options: DrawOptions = {}
 ) {
+  const { color = '#000', size = 1, tool = 'pen' } = options
   if (points.length < 2) return
-  const outline = getStroke(points, { simulatePressure: false })
+
+  if (tool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out'
+  } else {
+    ctx.globalCompositeOperation = 'source-over'
+  }
+
+  const outline = getStroke(points, {
+    size,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    simulatePressure: true
+  })
+
   if (outline.length < 2) return
   const path = new Path2D()
   path.moveTo(outline[0][0], outline[0][1])
@@ -30,20 +51,30 @@ export function drawStrokePath(
     path.lineTo(outline[i][0], outline[i][1])
   }
   path.closePath()
-  ctx.fillStyle = color
+
+  ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color
   ctx.fill(path)
+
+  // Reset composite operation
+  ctx.globalCompositeOperation = 'source-over'
 }
 
 export function drawAllStrokes(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
-  currentPoints: StrokePoint[] | null
+  currentPoints: StrokePoint[] | null,
+  currentOptions?: DrawOptions
 ) {
   ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+
+  // We need to use a temporary canvas for erasure to work correctly if we want it to "cut through" all strokes
+  // But since we clear and redraw everything, we can just use destination-out on the main canvas
+
   for (const s of strokes) {
-    drawStrokePath(ctx, s.points)
+    drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
   }
-  if (currentPoints && currentPoints.length >= 2) {
-    drawStrokePath(ctx, currentPoints)
+
+  if (currentPoints && currentPoints.length >= 2 && currentOptions) {
+    drawStrokePath(ctx, currentPoints, currentOptions)
   }
 }

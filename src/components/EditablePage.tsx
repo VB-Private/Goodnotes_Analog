@@ -1,31 +1,47 @@
 import { useRef, useEffect, useState } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import { drawAllStrokes, getCanvasPoint } from '../utils/drawing'
-import type { Page, Stroke, StrokePoint } from '../types'
+import type { Page, Stroke, StrokePoint, ToolType } from '../types'
+import { drawAllStrokes, getCanvasPoint, DrawOptions } from '../utils/drawing'
 import Paper from './Paper'
 
 interface EditablePageProps {
   page: Page
   scale: number
+  activeTool: ToolType
+  activeColor: string
+  activeSize: number
   onUpdate: (page: Page) => void
 }
 
-export default function EditablePage({ page, scale, onUpdate }: EditablePageProps) {
+export default function EditablePage({
+  page,
+  scale,
+  activeTool,
+  activeColor,
+  activeSize,
+  onUpdate
+}: EditablePageProps) {
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null)
+
+  const currentOptions: DrawOptions = {
+    color: activeColor,
+    size: activeSize,
+    tool: activeTool
+  }
 
   useEffect(() => {
     const canvas = strokeCanvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    drawAllStrokes(ctx, page.strokes, currentPoints)
-  }, [page.strokes, currentPoints])
+    drawAllStrokes(ctx, page.strokes, currentPoints, currentOptions)
+  }, [page.strokes, currentPoints, activeColor, activeTool, activeSize])
 
   function handlePointerDown(evt: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = strokeCanvasRef.current
     if (!canvas) return
-    ;(evt.target as HTMLCanvasElement).setPointerCapture(evt.pointerId)
+      ; (evt.target as HTMLCanvasElement).setPointerCapture(evt.pointerId)
     const pt = getCanvasPoint(evt.nativeEvent, canvas)
     setCurrentPoints([pt])
   }
@@ -43,14 +59,26 @@ export default function EditablePage({ page, scale, onUpdate }: EditablePageProp
       setCurrentPoints(null)
       return
     }
-    const stroke: Stroke = { points: [...currentPoints] }
+    const stroke: Stroke = {
+      id: crypto.randomUUID(),
+      points: [...currentPoints],
+      color: activeColor,
+      tool: activeTool,
+      size: activeSize
+    }
     setCurrentPoints(null)
     onUpdate({ ...page, strokes: [...page.strokes, stroke] })
   }
 
   function handlePointerCancel() {
     if (currentPoints && currentPoints.length >= 2) {
-      const stroke: Stroke = { points: [...currentPoints] }
+      const stroke: Stroke = {
+        id: crypto.randomUUID(),
+        points: [...currentPoints],
+        color: activeColor,
+        tool: activeTool,
+        size: activeSize
+      }
       onUpdate({ ...page, strokes: [...page.strokes, stroke] })
     }
     setCurrentPoints(null)
