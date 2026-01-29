@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
-import { drawAllStrokes, drawStrokePath, getCanvasPoint, DrawOptions, drawSingleStroke } from '../utils/drawing'
+import type { Page, Stroke, ToolType, TextField } from '../types'
+import { drawAllStrokes, drawSingleStroke } from '../utils/drawing'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
 
@@ -26,208 +26,165 @@ export default function EditablePage({
 }: EditablePageProps) {
   const staticCanvasRef = useRef<HTMLCanvasElement>(null)
   const activeCanvasRef = useRef<HTMLCanvasElement>(null)
-  const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null)
+
+  // High-performance buffers (outside React)
+  const buffer = useRef<number[]>([]) // [x, y, p, x, y, p, ...]
+  const fullStrokeBuffer = useRef<number[]>([])
+  const lastPoint = useRef<{ x: number, y: number } | null>(null)
+  const isDrawing = useRef(false)
+  const rafId = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
 
-  const currentOptions: DrawOptions = {
-    color: activeColor,
-    size: activeSize,
-    tool: activeTool
-  }
-
-  // Draw the static layer (committed strokes)
+  // Sync props to ref for the loop to access
+  const propsRef = useRef({ activeColor, activeSize, activeTool, page, onUpdate, scale })
   useEffect(() => {
-    const canvas = staticCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    drawAllStrokes(ctx, page.strokes, null)
+    propsRef.current = { activeColor, activeSize, activeTool, page, onUpdate, scale }
+  }, [activeColor, activeSize, activeTool, page, onUpdate, scale])
+
+  // Static layer redraw
+  useEffect(() => {
+    const ctx = staticCanvasRef.current?.getContext('2d')
+    if (ctx) drawAllStrokes(ctx, page.strokes, null)
   }, [page.strokes])
 
-  // Draw the active layer (current stroke)
   useEffect(() => {
     const canvas = activeCanvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+
+    const ctx = canvas.getContext('2d', { desynchronized: true })
     if (!ctx) return
-    ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
-    const previewOptions: DrawOptions = {
-      ...currentOptions,
-      color: activeTool === 'eraser' ? 'rgba(200, 200, 200, 0.5)' : activeColor,
-      forceSourceOver: activeTool === 'eraser'
-    }
-    if (currentPoints && currentPoints.length >= 2) {
-      drawStrokePath(ctx, currentPoints, previewOptions)
-    }
-  }, [currentPoints, activeColor, activeTool, activeSize])
 
-  function handlePointerDown(evt: React.PointerEvent<HTMLCanvasElement>) {
-    // Detect and report input type
-    if (onInputTypeChange) {
-      onInputTypeChange(evt.pointerType === 'pen' ? 'pen' : 'touch')
-    }
+    const render = () => {
+      const { activeColor: color, activeSize: size, activeTool: tool } = propsRef.current
 
-    // Prevention of Safari's long-press context menu / magnifying glass
-    if (evt.pointerType === 'pen') {
-      evt.preventDefault() // This is critical for Apple Pencil
-    }
+      if (buffer.current.length > 0) {
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.strokeStyle = tool === 'eraser' ? 'rgba(200, 200, 200, 0.5)' : color
 
-    const canvas = activeCanvasRef.current
-    if (!canvas) return
+        let i = 0
+        while (i < buffer.current.length) {
+          const x = buffer.current[i++]
+          const y = buffer.current[i++]
+          const p = buffer.current[i++]
 
-    if (activeTool === 'text') {
-      const pt = getCanvasPoint(evt.nativeEvent, canvas)
-      const newTextField: TextField = {
-        id: crypto.randomUUID(),
-        x: pt.x,
-        y: pt.y,
-        text: '',
-        color: activeColor,
-        fontSize: activeSize
-      }
-      setJustCreatedId(newTextField.id)
-      onUpdate({
-        ...page,
-        textFields: [...(page.textFields || []), newTextField]
-      })
-      return
-    }
-
-    ; (evt.target as HTMLCanvasElement).setPointerCapture(evt.pointerId)
-    const pt = getCanvasPoint(evt.nativeEvent, canvas)
-    setCurrentPoints([pt])
-  }
-
-  function handlePointerMove(evt: React.PointerEvent<HTMLCanvasElement>) {
-    if (currentPoints === null) return
-    const canvas = activeCanvasRef.current
-    if (!canvas) return
-    const pt = getCanvasPoint(evt.nativeEvent, canvas)
-    setCurrentPoints((prev) => (prev ? [...prev, pt] : null))
-  }
-
-  function handlePointerUp() {
-    if (currentPoints === null || currentPoints.length < 2) {
-      setCurrentPoints(null)
-      return
-    }
-    const stroke: Stroke = {
-      id: crypto.randomUUID(),
-      points: [...currentPoints],
-      color: activeColor,
-      tool: activeTool,
-      size: activeSize
-    }
-
-    // IMMIDIATE COMMIT TO STATIC CANVAS (for zero lag)
-    const staticCanvas = staticCanvasRef.current
-    if (staticCanvas) {
-      const ctx = staticCanvas.getContext('2d')
-      if (ctx) {
-        drawSingleStroke(ctx, stroke)
-      }
-    }
-
-    setCurrentPoints(null)
-    onUpdate({ ...page, strokes: [...page.strokes, stroke] })
-  }
-
-  function handleTextFieldUpdate(id: string, text: string) {
-    onUpdate({
-      ...page,
-      textFields: (page.textFields || []).map((tf) => (tf.id === id ? { ...tf, text } : tf))
-    })
-  }
-
-  function handleTextFieldDelete(id: string) {
-    onUpdate({
-      ...page,
-      textFields: (page.textFields || []).filter((tf) => tf.id !== id)
-    })
-  }
-
-  function handlePointerCancel() {
-    if (currentPoints && currentPoints.length >= 2) {
-      const stroke: Stroke = {
-        id: crypto.randomUUID(),
-        points: [...currentPoints],
-        color: activeColor,
-        tool: activeTool,
-        size: activeSize
-      }
-
-      // COMMIT TO STATIC CANVAS
-      const staticCanvas = staticCanvasRef.current
-      if (staticCanvas) {
-        const ctx = staticCanvas.getContext('2d')
-        if (ctx) {
-          drawSingleStroke(ctx, stroke)
+          if (lastPoint.current) {
+            // Match perfect-freehand thinning (0.5 default)
+            // formula: size * (0.5 + 0.5 * pressure)
+            ctx.lineWidth = size * (0.5 + 0.5 * p)
+            ctx.beginPath()
+            ctx.moveTo(lastPoint.current.x, lastPoint.current.y)
+            ctx.lineTo(x, y)
+            ctx.stroke()
+          }
+          lastPoint.current = { x, y }
         }
+        buffer.current = []
+      }
+      rafId.current = requestAnimationFrame(render)
+    }
+
+    const onDown = (e: PointerEvent) => {
+      const { scale: s, activeTool: tool, activeColor: c, activeSize: sz, onUpdate: update, page: pg } = propsRef.current
+
+      if (tool === 'text') {
+        const rect = canvas.getBoundingClientRect()
+        const x = (e.clientX - rect.left) / s
+        const y = (e.clientY - rect.top) / s
+        const newTextField: TextField = {
+          id: crypto.randomUUID(),
+          x, y,
+          text: '',
+          color: c,
+          fontSize: sz
+        }
+        setJustCreatedId(newTextField.id)
+        update({ ...pg, textFields: [...(pg.textFields || []), newTextField] })
+        return
       }
 
-      onUpdate({ ...page, strokes: [...page.strokes, stroke] })
+      e.preventDefault()
+      canvas.setPointerCapture(e.pointerId)
+      if (onInputTypeChange) onInputTypeChange(e.pointerType === 'pen' ? 'pen' : 'touch')
+
+      isDrawing.current = true
+      const rect = canvas.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / s
+      const y = (e.clientY - rect.top) / s
+      const p = e.pressure
+
+      buffer.current.push(x, y, p)
+      fullStrokeBuffer.current = [x, y, p]
+      lastPoint.current = null
     }
-    setCurrentPoints(null)
-  }
+
+    const onMove = (e: PointerEvent) => {
+      if (!isDrawing.current) return
+      const { scale: s } = propsRef.current
+      const rect = canvas.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / s
+      const y = (e.clientY - rect.top) / s
+      const p = e.pressure
+
+      buffer.current.push(x, y, p)
+      fullStrokeBuffer.current.push(x, y, p)
+    }
+
+    const onUp = () => {
+      if (!isDrawing.current) return
+      isDrawing.current = false
+
+      const { activeColor: c, activeSize: s, activeTool: t, onUpdate: update, page: pg } = propsRef.current
+
+      const pts = []
+      for (let i = 0; i < fullStrokeBuffer.current.length; i += 3) {
+        pts.push({
+          x: fullStrokeBuffer.current[i],
+          y: fullStrokeBuffer.current[i + 1],
+          pressure: fullStrokeBuffer.current[i + 2]
+        })
+      }
+
+      if (pts.length >= 2) {
+        const stroke: Stroke = { id: crypto.randomUUID(), points: pts, color: c, tool: t, size: s }
+        const sCtx = staticCanvasRef.current?.getContext('2d')
+        if (sCtx) drawSingleStroke(sCtx, stroke)
+        update({ ...pg, strokes: [...pg.strokes, stroke] })
+      }
+
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+      fullStrokeBuffer.current = []
+      lastPoint.current = null
+    }
+
+    canvas.addEventListener('pointerdown', onDown, { passive: false })
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+
+    rafId.current = requestAnimationFrame(render)
+
+    return () => {
+      canvas.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      cancelAnimationFrame(rafId.current)
+    }
+  }, [onInputTypeChange])
 
   return (
-    <div
-      style={{
-        width: PAGE_WIDTH * scale,
-        height: PAGE_HEIGHT * scale,
-        overflow: 'hidden',
-        margin: '0 auto',
-      }}
-    >
-      <div
-        style={{
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          position: 'relative',
-        }}
-      >
+    <div style={{ width: PAGE_WIDTH * scale, height: PAGE_HEIGHT * scale, overflow: 'hidden', margin: '0 auto' }}>
+      <div style={{ width: PAGE_WIDTH, height: PAGE_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'relative' }}>
         <Paper template={page.template} width={PAGE_WIDTH} height={PAGE_HEIGHT} />
-        <canvas
-          ref={staticCanvasRef}
-          width={PAGE_WIDTH}
-          height={PAGE_HEIGHT}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
-            pointerEvents: 'none',
-          }}
-        />
-        <canvas
-          ref={activeCanvasRef}
-          width={PAGE_WIDTH}
-          height={PAGE_HEIGHT}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
-            touchAction: 'none',
-            cursor: activeTool === 'text' ? 'text' : 'crosshair',
-          }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          onPointerLeave={handlePointerCancel}
-          onContextMenu={(e) => e.preventDefault()}
-        />
+        <canvas ref={staticCanvasRef} width={PAGE_WIDTH} height={PAGE_HEIGHT} style={{ position: 'absolute', left: 0, top: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, pointerEvents: 'none' }} />
+        <canvas ref={activeCanvasRef} width={PAGE_WIDTH} height={PAGE_HEIGHT} style={{ position: 'absolute', left: 0, top: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT, touchAction: 'none', cursor: activeTool === 'text' ? 'text' : 'crosshair' }} />
         {(page.textFields || []).map((tf) => (
           <TextFieldComponent
             key={tf.id}
             textField={tf}
-            onUpdate={handleTextFieldUpdate}
-            onDelete={handleTextFieldDelete}
+            onUpdate={(id, text) => onUpdate({ ...page, textFields: page.textFields.map(f => f.id === id ? { ...f, text } : f) })}
+            onDelete={id => onUpdate({ ...page, textFields: page.textFields.filter(f => f.id !== id) })}
             onBlur={() => setJustCreatedId(null)}
             autoFocus={tf.id === justCreatedId}
           />

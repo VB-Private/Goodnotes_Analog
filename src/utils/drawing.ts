@@ -43,7 +43,7 @@ export function drawStrokePath(
     thinning: 0.5,
     smoothing: 0.5,
     streamline: 0.5,
-    simulatePressure: true
+    simulatePressure: false
   })
 
   if (outline.length < 2) {
