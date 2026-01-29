@@ -121,6 +121,17 @@ export default function EditablePage({
     }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
+      const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
+      const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
+      const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
+      const shouldProcess = isPen || isMouse || activeTool === 'text'
+
+      if (onInputTypeChange) {
+        onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
+      }
+
+      if (!shouldProcess) return
+
       if (activeTool === 'text') {
         const pos = getPos(e)
         const newTextField: TextField = {
@@ -136,6 +147,7 @@ export default function EditablePage({
           ...page,
           textFields: [...(page.textFields || []), newTextField]
         })
+        if (e.cancelable) e.preventDefault()
         return
       }
 
@@ -143,12 +155,6 @@ export default function EditablePage({
       isDrawingRef.current = true
       pointsRef.current = [pos]
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
-
-      if (onInputTypeChange) {
-        const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
-        const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
-        onInputTypeChange(isPen ? 'pen' : 'touch')
-      }
 
       if (e.cancelable) e.preventDefault()
     }
@@ -253,7 +259,7 @@ export default function EditablePage({
             top: 0,
             width: PAGE_WIDTH,
             height: PAGE_HEIGHT,
-            touchAction: 'none',
+            touchAction: 'manipulation',
             cursor: activeTool === 'text' ? 'text' : 'crosshair',
           }}
         />
