@@ -90,10 +90,17 @@ export default function TextFieldComponent({
                     borderRadius: 8,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                     transition: 'all 0.2s',
-                    position: 'relative'
+                    position: 'relative',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text',
+                    WebkitTouchCallout: 'default',
                 }}
                 onPointerDown={(e) => {
                     // Prevent canvas from stealing focus or creating another field
+                    e.stopPropagation()
+                }}
+                onPointerUp={(e) => {
+                    // Prevent canvas from completing a stroke if started inside
                     e.stopPropagation()
                 }}
                 onMouseMove={(e) => {

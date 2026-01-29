@@ -12,6 +12,7 @@ interface EditablePageProps {
   activeColor: string
   activeSize: number
   onUpdate: (page: Page) => void
+  onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
 }
 
 export default function EditablePage({
@@ -20,7 +21,8 @@ export default function EditablePage({
   activeTool,
   activeColor,
   activeSize,
-  onUpdate
+  onUpdate,
+  onInputTypeChange
 }: EditablePageProps) {
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null)
@@ -41,6 +43,16 @@ export default function EditablePage({
   }, [page.strokes, currentPoints, activeColor, activeTool, activeSize])
 
   function handlePointerDown(evt: React.PointerEvent<HTMLCanvasElement>) {
+    // Detect and report input type
+    if (onInputTypeChange) {
+      onInputTypeChange(evt.pointerType === 'pen' ? 'pen' : 'touch')
+    }
+
+    // Prevention of Safari's long-press context menu / magnifying glass
+    if (evt.pointerType === 'pen') {
+      evt.preventDefault() // This is critical for Apple Pencil
+    }
+
     const canvas = strokeCanvasRef.current
     if (!canvas) return
 
@@ -156,6 +168,7 @@ export default function EditablePage({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onPointerLeave={handlePointerCancel}
+          onContextMenu={(e) => e.preventDefault()}
         />
         {(page.textFields || []).map((tf) => (
           <TextFieldComponent

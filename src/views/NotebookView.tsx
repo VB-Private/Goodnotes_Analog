@@ -25,6 +25,7 @@ export default function NotebookView() {
   const [activeTool, setActiveTool] = useState<ToolType>('pen')
   const [activeColor, setActiveColor] = useState('#000000')
   const [activeSize, setActiveSize] = useState(20)
+  const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
 
   useEffect(() => {
     if (!notebookId) return
@@ -118,6 +119,27 @@ export default function NotebookView() {
         <h1 style={{ margin: 0, fontSize: '14px', color: '#666', pointerEvents: 'auto' }}>
           {notebook.title}
         </h1>
+        {inputType && (
+          <div
+            style={{
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: 600,
+              borderRadius: '20px',
+              background: inputType === 'pen' ? '#E3F2FD' : '#F5F5F5',
+              color: inputType === 'pen' ? '#1976D2' : '#616161',
+              border: `1px solid ${inputType === 'pen' ? '#90CAF9' : '#E0E0E0'}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.3s ease',
+              pointerEvents: 'auto',
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>{inputType === 'pen' ? '✏️' : '☝️'}</span>
+            {inputType.toUpperCase()}
+          </div>
+        )}
       </div>
 
       <Toolkit
@@ -183,6 +205,7 @@ export default function NotebookView() {
                   activeColor={activeColor}
                   activeSize={activeSize}
                   onUpdate={handlePageUpdate}
+                  onInputTypeChange={setInputType}
                 />
               </div>
             ))

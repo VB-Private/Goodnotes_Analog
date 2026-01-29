@@ -1,2 +1,13 @@
-* { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; }
+* {
+    box-sizing: border-box;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
