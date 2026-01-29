@@ -88,64 +88,8 @@ export default function NotebookView() {
   if (loading || !notebook) return <div>Loading…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
-          zIndex: 20,
-          pointerEvents: 'none',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          style={{
-            pointerEvents: 'auto',
-            padding: '4px 8px',
-            fontSize: '12px',
-            borderRadius: '4px',
-            border: '1px solid #ddd',
-            background: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          Back
-        </button>
-        <h1 style={{ margin: 0, fontSize: '14px', color: '#666', pointerEvents: 'auto' }}>
-          {notebook.title}
-        </h1>
-        {inputType && (
-          <div
-            style={{
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: 600,
-              borderRadius: '20px',
-              background: inputType === 'pen' ? '#E3F2FD' : '#F5F5F5',
-              color: inputType === 'pen' ? '#1976D2' : '#616161',
-              border: `1px solid ${inputType === 'pen' ? '#90CAF9' : '#E0E0E0'}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.3s ease',
-              pointerEvents: 'auto',
-            }}
-          >
-            <span style={{ fontSize: '14px' }}>{inputType === 'pen' ? '✏️' : '☝️'}</span>
-            {inputType.toUpperCase()}
-          </div>
-        )}
-        <div id="debug-info" style={{ display: 'flex', gap: 12, fontSize: '10px', color: '#999', pointerEvents: 'none' }}>
-          <span id="force"></span>
-          <span id="touches"></span>
-        </div>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative', backgroundColor: '#f5f5f7' }}>
+      {/* Unified Toolbar */}
       <Toolkit
         activeTool={activeTool}
         activeColor={activeColor}
@@ -153,7 +97,50 @@ export default function NotebookView() {
         onToolChange={setActiveTool}
         onColorChange={setActiveColor}
         onSizeChange={setActiveSize}
+        onBack={() => navigate('/')}
+        onAddPage={() => setShowAddModal(true)}
       />
+
+      {/* Floating Info Overlay (Status/Debug) */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 70,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          zIndex: 20,
+          pointerEvents: 'none',
+        }}
+      >
+        {inputType && (
+          <div
+            style={{
+              padding: '4px 10px',
+              fontSize: '10px',
+              fontWeight: 600,
+              borderRadius: '20px',
+              background: 'rgba(255, 255, 255, 0.8)',
+              backdropFilter: 'blur(10px)',
+              color: '#333',
+              border: '1px solid rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              pointerEvents: 'none',
+            }}
+          >
+            <span>{inputType === 'pen' ? '✏️' : '☝️'}</span>
+            {inputType.toUpperCase()}
+          </div>
+        )}
+        <div id="debug-info" style={{ display: 'flex', gap: 12, fontSize: '10px', color: '#999' }}>
+          <span id="force"></span>
+          <span id="touches"></span>
+        </div>
+      </div>
 
       <div
         ref={scrollContainerRef}
@@ -163,9 +150,8 @@ export default function NotebookView() {
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          scrollSnapType: 'y mandatory',
-          paddingBottom: 24, // Reduced from 56
-          paddingRight: 60, // Space for toolkit
+          paddingTop: 80, // Space for the top toolkit
+          paddingBottom: 40,
         }}
       >
         <div
@@ -186,7 +172,7 @@ export default function NotebookView() {
                 fontSize: 15,
               }}
             >
-              Tap + to add your first page
+              Tap + in the toolbar to add your first page
             </div>
           ) : (
             pages.map((p) => (
@@ -216,31 +202,7 @@ export default function NotebookView() {
           )}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => setShowAddModal(true)}
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          left: 24,
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          border: '1px solid #ddd',
-          background: '#fff',
-          fontSize: 20,
-          lineHeight: 1,
-          cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          zIndex: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-        aria-label="Add page"
-      >
-        +
-      </button>
+
       {showAddModal && (
         <AddPageModal onClose={() => setShowAddModal(false)} onSelect={handleAddPage} />
       )}
