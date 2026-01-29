@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebook, getPages, updateNotebook, createPage, updatePage } from '../storage/db'
 import type { Notebook, Page, PageTemplate, ToolType } from '../types'
@@ -6,6 +6,7 @@ import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
+import { useVisualViewport } from '../hooks/useVisualViewport'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -20,6 +21,7 @@ export default function NotebookView() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [scale, setScale] = useState(1)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const viewport = useVisualViewport()
 
   // Toolkit state
   const [activeTool, setActiveTool] = useState<ToolType>('pen')
@@ -105,14 +107,16 @@ export default function NotebookView() {
       <div
         style={{
           position: 'fixed',
-          top: 70,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          top: viewport ? viewport.offsetTop + (70 * (1 / viewport.scale)) : 70,
+          left: viewport ? viewport.offsetLeft + (viewport.width / 2) : '50%',
+          transform: `translateX(-50%) scale(${viewport ? 1 / viewport.scale : 1})`,
+          transformOrigin: 'top center',
           display: 'flex',
           gap: 12,
           alignItems: 'center',
           zIndex: 20,
           pointerEvents: 'none',
+          transition: 'transform 0.05s linear, top 0.05s linear, left 0.05s linear',
         }}
       >
         {inputType && (

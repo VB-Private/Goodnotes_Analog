@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import type { ToolType } from '../types'
+import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface ToolkitProps {
     activeTool: ToolType
@@ -31,14 +32,21 @@ export default function Toolkit({
     onAddPage
 }: ToolkitProps) {
     const colorInputRef = useRef<HTMLInputElement>(null)
+    const viewport = useVisualViewport()
+
+    // Base styles when viewport is not ready
+    const baseScale = viewport ? 1 / viewport.scale : 1
+    const topOffset = viewport ? viewport.offsetTop + (20 * baseScale) : 20
+    const leftOffset = viewport ? viewport.offsetLeft + (viewport.width / 2) : '50%'
 
     return (
         <div
             style={{
                 position: 'fixed',
-                left: '50%',
-                top: 20,
-                transform: 'translateX(-50%)',
+                left: leftOffset,
+                top: topOffset,
+                transform: `translateX(-50%) scale(${baseScale})`,
+                transformOrigin: 'top center',
                 backgroundColor: 'rgba(28, 28, 30, 0.85)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
@@ -50,6 +58,8 @@ export default function Toolkit({
                 boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 zIndex: 1000,
+                transition: 'transform 0.05s linear, top 0.05s linear, left 0.05s linear',
+                pointerEvents: 'auto',
             }}
         >
             {/* Navigation & Actions */}
