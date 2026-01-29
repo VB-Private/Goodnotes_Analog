@@ -40,7 +40,7 @@ export default function NotebookView() {
       const s = Math.min(
         1,
         (window.innerWidth - 80) / PAGE_WIDTH, // Adjusted for toolkit space
-        (window.innerHeight - 120) / PAGE_HEIGHT
+        (window.innerHeight - 32) / PAGE_HEIGHT // Further reduced subtraction for full height
       )
       setScale(Math.max(0.1, s))
     }
@@ -90,18 +90,34 @@ export default function NotebookView() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
       <div
         style={{
-          marginBottom: 16,
-          padding: '16px 24px 0',
+          position: 'absolute',
+          top: 16,
+          left: 16,
           display: 'flex',
-          gap: 8,
+          gap: 12,
           alignItems: 'center',
-          flexShrink: 0,
+          zIndex: 20,
+          pointerEvents: 'none',
         }}
       >
-        <button type="button" onClick={() => navigate('/')}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          style={{
+            pointerEvents: 'auto',
+            padding: '4px 8px',
+            fontSize: '12px',
+            borderRadius: '4px',
+            border: '1px solid #ddd',
+            background: '#fff',
+            cursor: 'pointer',
+          }}
+        >
           Back
         </button>
-        <h1 style={{ margin: 0 }}>{notebook.title}</h1>
+        <h1 style={{ margin: 0, fontSize: '14px', color: '#666', pointerEvents: 'auto' }}>
+          {notebook.title}
+        </h1>
       </div>
 
       <Toolkit
@@ -122,7 +138,7 @@ export default function NotebookView() {
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
           scrollSnapType: 'y mandatory',
-          paddingBottom: 56,
+          paddingBottom: 24, // Reduced from 56
           paddingRight: 60, // Space for toolkit
         }}
       >
@@ -173,39 +189,31 @@ export default function NotebookView() {
           )}
         </div>
       </div>
-      <div
+      <button
+        type="button"
+        onClick={() => setShowAddModal(true)}
         style={{
           position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 56,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
+          bottom: 24,
+          left: 24,
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          border: '1px solid #ddd',
           background: '#fff',
-          borderTop: '1px solid #eee',
-          zIndex: 10,
+          fontSize: 20,
+          lineHeight: 1,
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
+        aria-label="Add page"
       >
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 24,
-            border: '1px solid #ccc',
-            background: '#fff',
-            fontSize: 24,
-            lineHeight: 1,
-            cursor: 'pointer',
-          }}
-          aria-label="Add page"
-        >
-          +
-        </button>
-      </div>
+        +
+      </button>
       {showAddModal && (
         <AddPageModal onClose={() => setShowAddModal(false)} onSelect={handleAddPage} />
       )}
