@@ -20,7 +20,6 @@ export interface DrawOptions {
   color?: string
   size?: number
   tool?: ToolType
-  forceSourceOver?: boolean
 }
 
 export function drawStrokePath(
@@ -31,8 +30,7 @@ export function drawStrokePath(
   const { color = '#000', size = 1, tool = 'pen' } = options
   if (points.length < 2) return
 
-  ctx.save()
-  if (tool === 'eraser' && !options.forceSourceOver) {
+  if (tool === 'eraser') {
     ctx.globalCompositeOperation = 'destination-out'
   } else {
     ctx.globalCompositeOperation = 'source-over'
@@ -43,14 +41,10 @@ export function drawStrokePath(
     thinning: 0.5,
     smoothing: 0.5,
     streamline: 0.5,
-    simulatePressure: false
+    simulatePressure: true
   })
 
-  if (outline.length < 2) {
-    ctx.restore()
-    return
-  }
-
+  if (outline.length < 2) return
   const path = new Path2D()
   path.moveTo(outline[0][0], outline[0][1])
   for (let i = 1; i < outline.length; i++) {
@@ -58,10 +52,11 @@ export function drawStrokePath(
   }
   path.closePath()
 
-  ctx.fillStyle = (tool === 'eraser' && !options.forceSourceOver) ? 'rgba(0,0,0,1)' : color
-  ctx.beginPath() // Reset current path state
+  ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color
   ctx.fill(path)
-  ctx.restore()
+
+  // Reset composite operation
+  ctx.globalCompositeOperation = 'source-over'
 }
 
 export function drawAllStrokes(
@@ -72,6 +67,9 @@ export function drawAllStrokes(
 ) {
   ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
 
+  // We need to use a temporary canvas for erasure to work correctly if we want it to "cut through" all strokes
+  // But since we clear and redraw everything, we can just use destination-out on the main canvas
+
   for (const s of strokes) {
     drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
   }
@@ -79,19 +77,4 @@ export function drawAllStrokes(
   if (currentPoints && currentPoints.length >= 2 && currentOptions) {
     drawStrokePath(ctx, currentPoints, currentOptions)
   }
-}
-
-/**
- * Draws a single stroke onto the provided context without clearing.
- * Useful for the "committing" phase of layered drawing.
- */
-export function drawSingleStroke(
-  ctx: CanvasRenderingContext2D,
-  stroke: Stroke
-) {
-  drawStrokePath(ctx, stroke.points, {
-    color: stroke.color,
-    size: stroke.size,
-    tool: stroke.tool
-  })
 }
