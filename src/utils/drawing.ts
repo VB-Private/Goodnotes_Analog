@@ -1,4 +1,3 @@
-import getStroke from 'perfect-freehand'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Stroke, StrokePoint, ToolType } from '../types'
 
@@ -27,7 +26,7 @@ export function drawStrokePath(
   points: StrokePoint[],
   options: DrawOptions = {}
 ) {
-  const { color = '#000', size = 1, tool = 'pen' } = options
+  const { color = '#000', size = 20, tool = 'pen' } = options
   if (points.length < 2) return
 
   if (tool === 'eraser') {
@@ -36,24 +35,48 @@ export function drawStrokePath(
     ctx.globalCompositeOperation = 'source-over'
   }
 
-  const outline = getStroke(points, {
-    size,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: true
-  })
+  ctx.strokeStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
 
-  if (outline.length < 2) return
-  const path = new Path2D()
-  path.moveTo(outline[0][0], outline[0][1])
-  for (let i = 1; i < outline.length; i++) {
-    path.lineTo(outline[i][0], outline[i][1])
+  let lastWidth = Math.log(points[0].pressure + 1) * (size * 2)
+
+  if (points.length === 2) {
+    ctx.lineWidth = lastWidth
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    ctx.lineTo(points[1].x, points[1].y)
+    ctx.stroke()
+  } else {
+    for (let i = 1; i < points.length; i++) {
+      const p = points[i]
+      const prev = points[i - 1]
+
+      const targetWidth = Math.log(p.pressure + 1) * (size * 2)
+      const currentWidth = (targetWidth * 0.2 + lastWidth * 0.8)
+      lastWidth = currentWidth
+
+      ctx.lineWidth = currentWidth
+
+      if (i >= 2) {
+        const p2 = points[i - 2]
+        const xc = (prev.x + p.x) / 2
+        const yc = (prev.y + p.y) / 2
+        const prevXc = (p2.x + prev.x) / 2
+        const prevYc = (p2.y + prev.y) / 2
+
+        ctx.beginPath()
+        ctx.moveTo(prevXc, prevYc)
+        ctx.quadraticCurveTo(prev.x, prev.y, xc, yc)
+        ctx.stroke()
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(prev.x, prev.y)
+        ctx.lineTo(p.x, p.y)
+        ctx.stroke()
+      }
+    }
   }
-  path.closePath()
-
-  ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color
-  ctx.fill(path)
 
   // Reset composite operation
   ctx.globalCompositeOperation = 'source-over'

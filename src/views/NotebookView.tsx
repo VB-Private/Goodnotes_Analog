@@ -140,6 +140,10 @@ export default function NotebookView() {
             {inputType.toUpperCase()}
           </div>
         )}
+        <div id="debug-info" style={{ display: 'flex', gap: 12, fontSize: '10px', color: '#999', pointerEvents: 'none' }}>
+          <span id="force"></span>
+          <span id="touches"></span>
+        </div>
       </div>
 
       <Toolkit
