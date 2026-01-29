@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
-import { drawAllStrokes, getCanvasPoint, DrawOptions } from '../utils/drawing'
+import { drawAllStrokes, drawStrokePath, getCanvasPoint, DrawOptions, drawSingleStroke } from '../utils/drawing'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
 
@@ -24,7 +24,8 @@ export default function EditablePage({
   onUpdate,
   onInputTypeChange
 }: EditablePageProps) {
-  const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
+  const staticCanvasRef = useRef<HTMLCanvasElement>(null)
+  const activeCanvasRef = useRef<HTMLCanvasElement>(null)
   const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
 
@@ -34,13 +35,31 @@ export default function EditablePage({
     tool: activeTool
   }
 
+  // Draw the static layer (committed strokes)
   useEffect(() => {
-    const canvas = strokeCanvasRef.current
+    const canvas = staticCanvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    drawAllStrokes(ctx, page.strokes, currentPoints, currentOptions)
-  }, [page.strokes, currentPoints, activeColor, activeTool, activeSize])
+    drawAllStrokes(ctx, page.strokes, null)
+  }, [page.strokes])
+
+  // Draw the active layer (current stroke)
+  useEffect(() => {
+    const canvas = activeCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+    const previewOptions: DrawOptions = {
+      ...currentOptions,
+      color: activeTool === 'eraser' ? 'rgba(200, 200, 200, 0.5)' : activeColor,
+      forceSourceOver: activeTool === 'eraser'
+    }
+    if (currentPoints && currentPoints.length >= 2) {
+      drawStrokePath(ctx, currentPoints, previewOptions)
+    }
+  }, [currentPoints, activeColor, activeTool, activeSize])
 
   function handlePointerDown(evt: React.PointerEvent<HTMLCanvasElement>) {
     // Detect and report input type
@@ -53,7 +72,7 @@ export default function EditablePage({
       evt.preventDefault() // This is critical for Apple Pencil
     }
 
-    const canvas = strokeCanvasRef.current
+    const canvas = activeCanvasRef.current
     if (!canvas) return
 
     if (activeTool === 'text') {
@@ -81,7 +100,7 @@ export default function EditablePage({
 
   function handlePointerMove(evt: React.PointerEvent<HTMLCanvasElement>) {
     if (currentPoints === null) return
-    const canvas = strokeCanvasRef.current
+    const canvas = activeCanvasRef.current
     if (!canvas) return
     const pt = getCanvasPoint(evt.nativeEvent, canvas)
     setCurrentPoints((prev) => (prev ? [...prev, pt] : null))
@@ -99,6 +118,16 @@ export default function EditablePage({
       tool: activeTool,
       size: activeSize
     }
+
+    // IMMIDIATE COMMIT TO STATIC CANVAS (for zero lag)
+    const staticCanvas = staticCanvasRef.current
+    if (staticCanvas) {
+      const ctx = staticCanvas.getContext('2d')
+      if (ctx) {
+        drawSingleStroke(ctx, stroke)
+      }
+    }
+
     setCurrentPoints(null)
     onUpdate({ ...page, strokes: [...page.strokes, stroke] })
   }
@@ -126,6 +155,16 @@ export default function EditablePage({
         tool: activeTool,
         size: activeSize
       }
+
+      // COMMIT TO STATIC CANVAS
+      const staticCanvas = staticCanvasRef.current
+      if (staticCanvas) {
+        const ctx = staticCanvas.getContext('2d')
+        if (ctx) {
+          drawSingleStroke(ctx, stroke)
+        }
+      }
+
       onUpdate({ ...page, strokes: [...page.strokes, stroke] })
     }
     setCurrentPoints(null)
@@ -151,7 +190,20 @@ export default function EditablePage({
       >
         <Paper template={page.template} width={PAGE_WIDTH} height={PAGE_HEIGHT} />
         <canvas
-          ref={strokeCanvasRef}
+          ref={staticCanvasRef}
+          width={PAGE_WIDTH}
+          height={PAGE_HEIGHT}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: PAGE_WIDTH,
+            height: PAGE_HEIGHT,
+            pointerEvents: 'none',
+          }}
+        />
+        <canvas
+          ref={activeCanvasRef}
           width={PAGE_WIDTH}
           height={PAGE_HEIGHT}
           style={{
