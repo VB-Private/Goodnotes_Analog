@@ -1,6 +1,5 @@
-import { useRef } from 'react'
+import React, { useRef } from 'react'
 import type { ToolType } from '../types'
-import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface ToolkitProps {
     activeTool: ToolType
@@ -9,8 +8,6 @@ interface ToolkitProps {
     onToolChange: (tool: ToolType) => void
     onColorChange: (color: string) => void
     onSizeChange: (size: number) => void
-    onBack: () => void
-    onAddPage: () => void
 }
 
 const COLORS = [
@@ -21,73 +18,45 @@ const COLORS = [
     '#F44336', // Red
 ]
 
+// SIZES constant removed as we use a slider now
+
 export default function Toolkit({
     activeTool,
     activeColor,
     activeSize,
     onToolChange,
     onColorChange,
-    onSizeChange,
-    onBack,
-    onAddPage
+    onSizeChange
 }: ToolkitProps) {
     const colorInputRef = useRef<HTMLInputElement>(null)
-    const viewport = useVisualViewport()
-
-    // Base styles when viewport is not ready
-    const baseScale = viewport ? 1 / viewport.scale : 1
-    const topOffset = viewport ? viewport.offsetTop : 0
-    const leftOffset = viewport ? viewport.offsetLeft : 0
-    const width = viewport ? viewport.width * viewport.scale : '100%'
 
     return (
         <div
             style={{
                 position: 'fixed',
-                left: leftOffset,
-                top: topOffset,
-                width: width,
-                transform: `scale(${baseScale})`,
-                transformOrigin: 'top left',
+                right: 20,
+                top: '50%',
+                transform: 'translateY(-50%)',
                 backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                padding: '8px 16px',
+                backdropFilter: 'blur(12px)',
+                borderRadius: 24,
+                padding: '20px 12px',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
-                borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-                zIndex: 1000,
-                transition: 'none', // Remove transition for snappier viewport tracking
-                pointerEvents: 'auto',
-                boxSizing: 'border-box',
-                willChange: 'transform, top, left, width'
+                flexDirection: 'column',
+                gap: 20,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                zIndex: 100,
             }}
         >
-            {/* Navigation & Actions */}
-            <div style={{ display: 'flex', gap: 8, paddingRight: 8, borderRight: '1px solid rgba(0,0,0,0.1)' }}>
-                <IconButton onClick={onBack} title="Back">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m15 18-6-6 6-6" />
-                    </svg>
-                </IconButton>
-                <IconButton onClick={onAddPage} title="Add Page">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 5v14M5 12h14" />
-                    </svg>
-                </IconButton>
-            </div>
-
             {/* Tools Section */}
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <ToolButton
                     active={activeTool === 'pen'}
                     onClick={() => onToolChange('pen')}
                     label="Pen"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
                     </svg>
                 </ToolButton>
@@ -96,7 +65,7 @@ export default function Toolkit({
                     onClick={() => onToolChange('eraser')}
                     label="Eraser"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21H7Z" />
                         <path d="m22 21-5-5" />
                         <path d="m5 11 9 9" />
@@ -107,7 +76,7 @@ export default function Toolkit({
                     onClick={() => onToolChange('text')}
                     label="Text"
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="4 7 4 4 20 4 20 7" />
                         <line x1="9" y1="20" x2="15" y2="20" />
                         <line x1="12" y1="4" x2="12" y2="20" />
@@ -115,10 +84,57 @@ export default function Toolkit({
                 </ToolButton>
             </div>
 
-            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
+            <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.08)', margin: '0 4px' }} />
+
+            {/* Width Slider Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15, alignItems: 'center', padding: '10px 0' }}>
+                <div
+                    style={{
+                        width: 32,
+                        height: 32,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.05)',
+                        borderRadius: '50%',
+                        border: '1px solid rgba(0,0,0,0.1)'
+                    }}
+                >
+                    <div
+                        style={{
+                            width: Math.max(1, activeSize),
+                            height: Math.max(1, activeSize),
+                            borderRadius: '50%',
+                            backgroundColor: activeTool === 'eraser' ? '#ff9b9b' : activeColor,
+                            maxWidth: 24,
+                            maxHeight: 24,
+                            transition: 'width 0.1s, height 0.1s'
+                        }}
+                    />
+                </div>
+                <div style={{ height: 100, display: 'flex', alignItems: 'center' }}>
+                    <input
+                        type="range"
+                        min="1"
+                        max="40"
+                        step="1"
+                        value={activeSize}
+                        onChange={(e) => onSizeChange(Number(e.target.value))}
+                        style={{
+                            WebkitAppearance: 'slider-vertical',
+                            width: 8,
+                            height: '100%',
+                            cursor: 'pointer',
+                        } as React.CSSProperties}
+                    />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 'bold', color: '#666' }}>{activeSize}px</span>
+            </div>
+
+            <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.08)', margin: '0 4px' }} />
 
             {/* Colors Section */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {COLORS.map(color => (
                     <button
                         key={color}
@@ -127,36 +143,39 @@ export default function Toolkit({
                             onToolChange('pen')
                         }}
                         style={{
-                            width: 20,
-                            height: 20,
+                            width: 32,
+                            height: 32,
                             borderRadius: '50%',
                             backgroundColor: color,
-                            border: '1.5px solid rgba(255,255,255,0.2)',
-                            outline: activeColor === color && activeTool === 'pen' ? `2px solid #007AFF` : 'none',
-                            outlineOffset: '2px',
+                            border: '2px solid #fff',
+                            outline: activeColor === color && activeTool === 'pen' ? '2px solid #007AFF' : 'none',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             cursor: 'pointer',
-                            transition: 'transform 0.1s',
-                            transform: activeColor === color && activeTool === 'pen' ? 'scale(1.2)' : 'scale(1)',
+                            transition: 'transform 0.2s',
+                            transform: activeColor === color && activeTool === 'pen' ? 'scale(1.1)' : 'scale(1)',
                         }}
                         aria-label={`Select ${color}`}
                     />
                 ))}
 
+                {/* Color Wheel Functional */}
                 <button
                     onClick={() => colorInputRef.current?.click()}
                     style={{
-                        width: 20,
-                        height: 20,
+                        width: 32,
+                        height: 32,
                         borderRadius: '50%',
                         background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
-                        border: '1.5px solid rgba(255,255,255,0.2)',
+                        border: '2px solid #fff',
                         outline: !COLORS.includes(activeColor) && activeTool === 'pen' ? '2px solid #007AFF' : 'none',
-                        outlineOffset: '2px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                         cursor: 'pointer',
+                        transition: 'transform 0.2s',
+                        transform: !COLORS.includes(activeColor) && activeTool === 'pen' ? 'scale(1.1)' : 'scale(1)',
                         position: 'relative',
                         overflow: 'hidden'
                     }}
-                    title="Custom Color"
+                    title="Pick a custom color"
                 >
                     <input
                         ref={colorInputRef}
@@ -170,56 +189,13 @@ export default function Toolkit({
                             position: 'absolute',
                             top: -10,
                             left: -10,
-                            width: 40,
-                            height: 40,
+                            width: 50,
+                            height: 50,
                             opacity: 0,
                             cursor: 'pointer'
                         }}
                     />
                 </button>
-            </div>
-
-            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
-
-            {/* Width Section */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 60 }}>
-                    <input
-                        type="range"
-                        min="1"
-                        max="40"
-                        step="1"
-                        value={activeSize}
-                        onChange={(e) => onSizeChange(Number(e.target.value))}
-                        style={{
-                            width: '100%',
-                            height: 4,
-                            cursor: 'pointer',
-                            accentColor: '#007AFF',
-                        }}
-                    />
-                </div>
-                <div
-                    style={{
-                        width: 24,
-                        height: 24,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        borderRadius: 6,
-                        border: '1px solid rgba(0,0,0,0.1)'
-                    }}
-                >
-                    <div
-                        style={{
-                            width: Math.min(16, Math.max(1, activeSize / 2)),
-                            height: Math.min(16, Math.max(1, activeSize / 2)),
-                            borderRadius: '50%',
-                            backgroundColor: activeTool === 'eraser' ? '#ff9b9b' : activeColor,
-                        }}
-                    />
-                </div>
             </div>
         </div>
     )
@@ -230,45 +206,19 @@ function ToolButton({ children, active, onClick, label }: { children: React.Reac
         <button
             onClick={onClick}
             style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
+                width: 44,
+                height: 44,
+                borderRadius: 12,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: active ? '#007AFF' : 'transparent',
-                color: active ? '#fff' : '#1c1c1e',
+                color: active ? '#fff' : '#333',
                 border: 'none',
                 cursor: 'pointer',
-                transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.2s',
             }}
             title={label}
-        >
-            {children}
-        </button>
-    )
-}
-
-function IconButton({ children, onClick, title }: { children: React.ReactNode, onClick: () => void, title: string }) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'transparent',
-                color: '#1c1c1e',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-            title={title}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
             {children}
         </button>
