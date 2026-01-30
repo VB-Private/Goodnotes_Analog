@@ -36,8 +36,9 @@ export default function Toolkit({
 
     // Base styles when viewport is not ready
     const baseScale = viewport ? 1 / viewport.scale : 1
-    const topOffset = viewport ? viewport.offsetTop + (20 * baseScale) : 20
-    const leftOffset = viewport ? viewport.offsetLeft + (viewport.width / 2) : '50%'
+    const topOffset = viewport ? viewport.offsetTop : 0
+    const leftOffset = viewport ? viewport.offsetLeft : 0
+    const width = viewport ? viewport.width * viewport.scale : '100%'
 
     return (
         <div
@@ -45,25 +46,28 @@ export default function Toolkit({
                 position: 'fixed',
                 left: leftOffset,
                 top: topOffset,
-                transform: `translateX(-50%) scale(${baseScale})`,
-                transformOrigin: 'top center',
-                backgroundColor: 'rgba(28, 28, 30, 0.85)',
+                width: width,
+                transform: `scale(${baseScale})`,
+                transformOrigin: 'top left',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
-                borderRadius: 20,
                 padding: '8px 16px',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 12,
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
+                borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
                 zIndex: 1000,
-                transition: 'transform 0.05s linear, top 0.05s linear, left 0.05s linear',
+                transition: 'none', // Remove transition for snappier viewport tracking
                 pointerEvents: 'auto',
+                boxSizing: 'border-box',
+                willChange: 'transform, top, left, width'
             }}
         >
             {/* Navigation & Actions */}
-            <div style={{ display: 'flex', gap: 8, paddingRight: 8, borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', gap: 8, paddingRight: 8, borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                 <IconButton onClick={onBack} title="Back">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="m15 18-6-6 6-6" />
@@ -111,7 +115,7 @@ export default function Toolkit({
                 </ToolButton>
             </div>
 
-            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
 
             {/* Colors Section */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -175,7 +179,7 @@ export default function Toolkit({
                 </button>
             </div>
 
-            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
 
             {/* Width Section */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -202,9 +206,9 @@ export default function Toolkit({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        backgroundColor: 'rgba(0,0,0,0.05)',
                         borderRadius: 6,
-                        border: '1px solid rgba(255,255,255,0.1)'
+                        border: '1px solid rgba(0,0,0,0.1)'
                     }}
                 >
                     <div
@@ -233,7 +237,7 @@ function ToolButton({ children, active, onClick, label }: { children: React.Reac
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: active ? '#007AFF' : 'transparent',
-                color: active ? '#fff' : 'rgba(255,255,255,0.8)',
+                color: active ? '#fff' : '#1c1c1e',
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -257,13 +261,13 @@ function IconButton({ children, onClick, title }: { children: React.ReactNode, o
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: 'transparent',
-                color: 'rgba(255,255,255,0.8)',
+                color: '#1c1c1e',
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
             title={title}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
         >
             {children}

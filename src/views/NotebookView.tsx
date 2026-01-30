@@ -116,7 +116,8 @@ export default function NotebookView() {
           alignItems: 'center',
           zIndex: 20,
           pointerEvents: 'none',
-          transition: 'transform 0.05s linear, top 0.05s linear, left 0.05s linear',
+          transition: 'none',
+          willChange: 'transform, top, left',
         }}
       >
         {inputType && (
