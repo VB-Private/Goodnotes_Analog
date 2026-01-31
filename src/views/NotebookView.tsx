@@ -26,6 +26,7 @@ export default function NotebookView() {
   const [activeColor, setActiveColor] = useState('#000000')
   const [activeSize, setActiveSize] = useState(20)
   const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
+  const [modifiedStack, setModifiedStack] = useState<string[]>([])
 
   useEffect(() => {
     if (!notebookId) return
@@ -55,8 +56,32 @@ export default function NotebookView() {
   }, [loading])
 
   function handlePageUpdate(updated: Page) {
+    const original = pages.find(p => p.id === updated.id)
+    if (original && original.strokes.length < updated.strokes.length) {
+      setModifiedStack(prev => [...prev, updated.id])
+    }
     updatePage(updated)
     setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+  }
+
+  function handleUndo() {
+    if (modifiedStack.length === 0) return
+
+    const newStack = [...modifiedStack]
+    const lastPageId = newStack.pop()
+    setModifiedStack(newStack)
+
+    const pageToUndo = pages.find(p => p.id === lastPageId)
+    if (pageToUndo && pageToUndo.strokes.length > 0) {
+      const updatedPage = {
+        ...pageToUndo,
+        strokes: pageToUndo.strokes.slice(0, -1)
+      }
+      handlePageUpdate(updatedPage)
+      // Since handlePageUpdate will add it back to stack if strokes length increased, 
+      // but here it decreased, so it's fine. 
+      // Wait, handlePageUpdate checks if length increased. Correct.
+    }
   }
 
   async function handleAddPage(template: PageTemplate) {
@@ -153,6 +178,8 @@ export default function NotebookView() {
         onToolChange={setActiveTool}
         onColorChange={setActiveColor}
         onSizeChange={setActiveSize}
+        onUndo={handleUndo}
+        canUndo={modifiedStack.length > 0}
       />
 
       <div
