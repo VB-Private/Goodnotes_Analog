@@ -29,6 +29,7 @@ export interface Notebook {
   title: string
   createdAt: number
   pageIds: string[]
+  lastPageId?: string
 }
 
 export interface Page {

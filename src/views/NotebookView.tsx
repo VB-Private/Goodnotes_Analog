@@ -27,9 +27,11 @@ export default function NotebookView() {
   const [activeSize, setActiveSize] = useState(20)
   const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
   const [modifiedStack, setModifiedStack] = useState<string[]>([])
+  const hasAttemptedInitialScroll = useRef(false)
 
   useEffect(() => {
     if (!notebookId) return
+    hasAttemptedInitialScroll.current = false
     Promise.all([getNotebook(notebookId), getPages(notebookId)]).then(([nb, p]) => {
       setNotebook(nb ?? null)
       setPages(p.sort((a, b) => a.createdAt - b.createdAt))
@@ -52,14 +54,40 @@ export default function NotebookView() {
   }, [])
 
   useEffect(() => {
-    if (!loading) scrollContainerRef.current?.scrollTo(0, 0)
-  }, [loading])
+    if (loading || pages.length === 0 || !notebook || hasAttemptedInitialScroll.current) return
+
+    const targetPageId = notebook.lastPageId || pages[pages.length - 1].id
+
+    // We wait a bit longer to ensure everything (Paper background, EditablePage, etc.) has rendered at the correct scale
+    const scrollTimeout = setTimeout(() => {
+      const pageElement = document.getElementById(`page-wrapper-${targetPageId}`)
+      if (pageElement) {
+        pageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
+        hasAttemptedInitialScroll.current = true
+      } else {
+        // Fallback to last page if target is missing
+        const lastPageEl = document.getElementById(`page-wrapper-${pages[pages.length - 1].id}`)
+        lastPageEl?.scrollIntoView({ behavior: 'auto', block: 'start' })
+        hasAttemptedInitialScroll.current = true
+      }
+    }, 300)
+
+    return () => clearTimeout(scrollTimeout)
+  }, [loading, notebook, pages, scale])
 
   function handlePageUpdate(updated: Page) {
     const original = pages.find(p => p.id === updated.id)
     if (original && original.strokes.length < updated.strokes.length) {
       setModifiedStack(prev => [...prev, updated.id])
     }
+
+    // Save last edited page
+    if (notebook) {
+      const updatedNb = { ...notebook, lastPageId: updated.id }
+      updateNotebook(updatedNb)
+      setNotebook(updatedNb)
+    }
+
     updatePage(updated)
     setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
   }
@@ -104,6 +132,13 @@ export default function NotebookView() {
     setNotebook(updated)
     setPages((prev) => [...prev, page].sort((a, b) => a.createdAt - b.createdAt))
     setShowAddModal(false)
+
+    // Scroll to the new page is already handled by the existing setTimeout below
+    // but we should also update lastPageId for the notebook
+    const notebookWithLastPage = { ...updated, lastPageId: pageId }
+    await updateNotebook(notebookWithLastPage)
+    setNotebook(notebookWithLastPage)
+
     setTimeout(() => {
       const el = scrollContainerRef.current
       if (el) el.scrollTop = el.scrollHeight
@@ -219,6 +254,7 @@ export default function NotebookView() {
             pages.map((p) => (
               <div
                 key={p.id}
+                id={`page-wrapper-${p.id}`}
                 style={{
                   scrollSnapAlign: 'start',
                   scrollSnapStop: 'always',
