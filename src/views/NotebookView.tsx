@@ -251,11 +251,12 @@ export default function NotebookView() {
               Tap + to add your first page
             </div>
           ) : (
-            pages.map((p) => (
+            pages.map((p, i) => (
               <div
                 key={p.id}
                 id={`page-wrapper-${p.id}`}
                 style={{
+                  position: 'relative',
                   scrollSnapAlign: 'start',
                   scrollSnapStop: 'always',
                   minHeight: PAGE_HEIGHT * scale,
@@ -265,6 +266,21 @@ export default function NotebookView() {
                   paddingTop: 8,
                 }}
               >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: `calc(50% - ${(PAGE_WIDTH * scale) / 2}px - 40px)`,
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: '#ccc',
+                    userSelect: 'none',
+                    textAlign: 'right',
+                    width: '30px',
+                  }}
+                >
+                  {i + 1}
+                </div>
                 <EditablePage
                   page={p}
                   scale={scale}
