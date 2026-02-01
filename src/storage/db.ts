@@ -45,6 +45,11 @@ export async function updateNotebook(notebook: Notebook): Promise<void> {
   await db.put('notebooks', notebook)
 }
 
+export async function deleteNotebook(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('notebooks', id)
+}
+
 // --- Pages ---
 
 export async function getPages(notebookId: string): Promise<Page[]> {
