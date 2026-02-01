@@ -179,7 +179,7 @@ export default function NotebookView() {
   if (loading || !notebook) return <div>Loading…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative', marginTop: "20px" }}>
       <div
         style={{
           position: 'absolute',
