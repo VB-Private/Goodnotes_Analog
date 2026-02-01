@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNotebook, getPages, updateNotebook, createPage, updatePage } from '../storage/db'
+import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage } from '../storage/db'
 import type { Notebook, Page, PageTemplate, ToolType } from '../types'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
@@ -27,7 +27,16 @@ export default function NotebookView() {
   const [activeSize, setActiveSize] = useState(20)
   const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
   const [modifiedStack, setModifiedStack] = useState<string[]>([])
+  const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
   const hasAttemptedInitialScroll = useRef(false)
+
+  useEffect(() => {
+    function handleClickOutside() {
+      setActiveMenuPageId(null)
+    }
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (!notebookId) return
@@ -143,6 +152,28 @@ export default function NotebookView() {
       const el = scrollContainerRef.current
       if (el) el.scrollTop = el.scrollHeight
     }, 0)
+  }
+
+  async function handleDeletePage(pageId: string) {
+    if (!confirm('Are you sure you want to delete this page?')) return
+
+    // Optimistic update
+    const newPages = pages.filter(p => p.id !== pageId)
+    setPages(newPages)
+
+    if (notebook) {
+      const newPageIds = notebook.pageIds.filter(id => id !== pageId)
+      const updatedNb = { ...notebook, pageIds: newPageIds }
+      // Update lastPageId if needed
+      if (updatedNb.lastPageId === pageId) {
+        updatedNb.lastPageId = newPageIds[newPageIds.length - 1] || undefined
+      }
+      setNotebook(updatedNb)
+      updateNotebook(updatedNb)
+    }
+
+    await deletePage(pageId)
+    setActiveMenuPageId(null)
   }
 
   if (loading || !notebook) return <div>Loading…</div>
@@ -280,6 +311,74 @@ export default function NotebookView() {
                   }}
                 >
                   {i + 1}
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: `calc(50% + ${(PAGE_WIDTH * scale) / 2}px + 10px)`,
+                    zIndex: 10,
+                  }}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveMenuPageId(activeMenuPageId === p.id ? null : p.id)
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      fontSize: '20px',
+                      lineHeight: 1,
+                      color: '#ccc',
+                      transition: 'color 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#666'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#ccc'}
+                  >
+                    ⋮
+                  </button>
+                  {activeMenuPageId === p.id && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        background: 'white',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        padding: '4px 0',
+                        minWidth: '120px',
+                        zIndex: 20,
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeletePage(p.id)
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#d32f2f',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        Delete Page
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <EditablePage
                   page={p}

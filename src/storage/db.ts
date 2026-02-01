@@ -63,7 +63,13 @@ export async function createPage(page: Page): Promise<void> {
   await db.add('pages', page)
 }
 
+
 export async function updatePage(page: Page): Promise<void> {
   const db = await getDB()
   await db.put('pages', page)
+}
+
+export async function deletePage(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('pages', id)
 }
