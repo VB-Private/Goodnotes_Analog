@@ -179,7 +179,7 @@ export default function NotebookView() {
   if (loading || !notebook) return <div>Loading…</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative', marginTop: "20px" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
       <div
         style={{
           position: 'absolute',
@@ -252,6 +252,7 @@ export default function NotebookView() {
         ref={scrollContainerRef}
         style={{
           flex: 1,
+          // marginTop: "20px",
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',

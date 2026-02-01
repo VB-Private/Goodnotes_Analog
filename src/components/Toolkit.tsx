@@ -1,5 +1,6 @@
 import React, { useRef } from 'react'
 import type { ToolType } from '../types'
+import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface ToolkitProps {
     activeTool: ToolType
@@ -32,26 +33,45 @@ export default function Toolkit({
     onUndo,
     canUndo
 }: ToolkitProps) {
+    const viewport = useVisualViewport()
     const colorInputRef = useRef<HTMLInputElement>(null)
+
+    const style: React.CSSProperties = viewport ? {
+        position: 'fixed',
+        left: viewport.offsetLeft + viewport.width - 16,
+        top: viewport.offsetTop + (viewport.height / 2),
+        transform: `translate(-80%, -50%) scale(${1 / viewport.scale})`,
+        transformOrigin: 'right center',
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(12px)',
+        borderRadius: 20,
+        padding: '12px 8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.4)',
+        zIndex: 100,
+    } : {
+        position: 'fixed',
+        right: 16,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(12px)',
+        borderRadius: 20,
+        padding: '12px 8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.4)',
+        zIndex: 100,
+    }
 
     return (
         <div
-            style={{
-                position: 'fixed',
-                right: 16,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                backdropFilter: 'blur(12px)',
-                borderRadius: 20,
-                padding: '12px 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
-                zIndex: 100,
-            }}
+            style={style}
         >
             {/* Tools Section */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
