@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import type { ToolType } from '../types'
 import { useVisualViewport } from '../hooks/useVisualViewport'
 
@@ -19,9 +19,22 @@ const COLORS = [
     '#4CAF50', // Green
     '#FFC107', // Yellow
     '#F44336', // Red
+    '#9C27B0', // Purple
+    '#FF4081', // Pink
+    '#795548', // Brown
 ]
 
-// SIZES constant removed as we use a slider now
+const PEN_SIZES = [
+    { label: 'Small', value: 5 },
+    { label: 'Medium', value: 10 },
+    { label: 'Big', value: 15 },
+]
+
+const ERASER_SIZES = [
+    { label: 'Small', value: 25 },
+    { label: 'Medium', value: 40 },
+    { label: 'Big', value: 80 },
+]
 
 export default function Toolkit({
     activeTool,
@@ -34,204 +47,304 @@ export default function Toolkit({
     canUndo
 }: ToolkitProps) {
     const viewport = useVisualViewport()
+    const toolkitRef = useRef<HTMLDivElement>(null)
     const colorInputRef = useRef<HTMLInputElement>(null)
+    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | null>(null)
 
-    const style: React.CSSProperties = viewport ? {
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (openPopup && toolkitRef.current && !toolkitRef.current.contains(event.target as Node)) {
+                setOpenPopup(null)
+            }
+        }
+        // Use mousedown to catch clicks before they might trigger other things
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [openPopup])
+
+    const isPenLike = activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon'
+
+    const handleToolClick = (tool: ToolType) => {
+        if (tool === 'pen') {
+            if (isPenLike) {
+                setOpenPopup(openPopup === 'pen' ? null : 'pen')
+            } else {
+                onToolChange('pen')
+                setOpenPopup(null)
+            }
+        } else if (tool === 'eraser') {
+            if (activeTool === 'eraser') {
+                setOpenPopup(openPopup === 'eraser' ? null : 'eraser')
+            } else {
+                onToolChange('eraser')
+                setOpenPopup(null)
+            }
+        } else {
+            onToolChange(tool)
+            setOpenPopup(null)
+        }
+    }
+
+    const containerStyle: React.CSSProperties = viewport ? {
         position: 'fixed',
-        left: viewport.offsetLeft + viewport.width - 16,
-        top: viewport.offsetTop + (viewport.height / 2),
-        transform: `translate(-80%, -50%) scale(${1 / viewport.scale})`,
-        transformOrigin: 'right center',
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderRadius: 20,
-        padding: '12px 8px',
+        left: viewport.offsetLeft + (viewport.width / 2),
+        top: viewport.offsetTop + 16,
+        transform: `translateX(-50%) scale(${1 / viewport.scale})`,
+        transformOrigin: 'top center',
+        zIndex: 100,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
-        border: '1px solid rgba(255, 255, 255, 0.4)',
-        zIndex: 100,
+        alignItems: 'center',
+        gap: 8,
+        pointerEvents: 'none',
     } : {
         position: 'fixed',
-        right: 16,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderRadius: 20,
-        padding: '12px 8px',
+        left: '50%',
+        top: 16,
+        transform: 'translateX(-50%)',
+        zIndex: 100,
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
-        border: '1px solid rgba(255, 255, 255, 0.4)',
-        zIndex: 100,
+        alignItems: 'center',
+        gap: 8,
+        pointerEvents: 'none',
+    }
+
+    const barStyle: React.CSSProperties = {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 24,
+        padding: '6px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+        border: '1px solid rgba(255, 255, 255, 0.5)',
+        pointerEvents: 'auto',
     }
 
     return (
-        <div
-            style={style}
-        >
-            {/* Tools Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div ref={toolkitRef} style={containerStyle}>
+            <div style={barStyle}>
                 <ToolButton
-                    active={activeTool === 'pen'}
-                    onClick={() => onToolChange('pen')}
-                    label="Pen"
+                    active={isPenLike}
+                    onClick={() => handleToolClick('pen')}
+                    label="Pen Tools"
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                    </svg>
+                    <PenIcon type={activeTool === 'pencil' ? 'pencil' : activeTool === 'crayon' ? 'crayon' : 'pen'} />
                 </ToolButton>
+
                 <ToolButton
                     active={activeTool === 'eraser'}
-                    onClick={() => onToolChange('eraser')}
+                    onClick={() => handleToolClick('eraser')}
                     label="Eraser"
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21H7Z" />
-                        <path d="m22 21-5-5" />
-                        <path d="m5 11 9 9" />
-                    </svg>
+                    <EraserIcon />
                 </ToolButton>
+
                 <ToolButton
                     active={activeTool === 'text'}
-                    onClick={() => onToolChange('text')}
+                    onClick={() => handleToolClick('text')}
                     label="Text"
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="4 7 4 4 20 4 20 7" />
-                        <line x1="9" y1="20" x2="15" y2="20" />
-                        <line x1="12" y1="4" x2="12" y2="20" />
-                    </svg>
+                    <TextIcon />
                 </ToolButton>
+
+                <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 8px' }} />
+
                 <ToolButton
                     active={false}
                     onClick={onUndo || (() => { })}
                     label="Undo"
                     disabled={!canUndo}
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
-                    </svg>
+                    <UndoIcon />
                 </ToolButton>
             </div>
 
-            <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.08)', margin: '0 4px' }} />
-
-            {/* Width Slider Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', padding: '4px 0' }}>
+            {/* Popups */}
+            {openPopup === 'pen' && (
                 <div
                     style={{
-                        width: 28,
-                        height: 28,
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderRadius: 20,
+                        padding: 16,
+                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                        border: '1px solid rgba(0,0,0,0.05)',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        borderRadius: '50%',
-                        border: '1px solid rgba(0,0,0,0.1)'
+                        flexDirection: 'column',
+                        gap: 16,
+                        pointerEvents: 'auto',
+                        minWidth: 240,
                     }}
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <div
-                        style={{
-                            width: Math.max(1, activeSize),
-                            height: Math.max(1, activeSize),
-                            borderRadius: '50%',
-                            backgroundColor: activeTool === 'eraser' ? '#ff9b9b' : activeColor,
-                            maxWidth: 20,
-                            maxHeight: 20,
-                            transition: 'width 0.1s, height 0.1s'
-                        }}
-                    />
+                    {/* Tool Sub-types */}
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                        <SubToolButton
+                            active={activeTool === 'pen'}
+                            onClick={() => onToolChange('pen')}
+                            label="Pen"
+                        >
+                            <PenIcon type="pen" />
+                        </SubToolButton>
+                        <SubToolButton
+                            active={activeTool === 'pencil'}
+                            onClick={() => onToolChange('pencil')}
+                            label="Pencil"
+                        >
+                            <PenIcon type="pencil" />
+                        </SubToolButton>
+                        <SubToolButton
+                            active={activeTool === 'crayon'}
+                            onClick={() => onToolChange('crayon')}
+                            label="Crayon"
+                        >
+                            <PenIcon type="crayon" />
+                        </SubToolButton>
+                    </div>
+
+                    <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.05)' }} />
+
+                    {/* Width Presets */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Size</span>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {PEN_SIZES.map(size => (
+                                <button
+                                    key={size.value}
+                                    onClick={() => onSizeChange(size.value)}
+                                    style={{
+                                        flex: 1,
+                                        height: 40,
+                                        borderRadius: 12,
+                                        border: 'none',
+                                        backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
+                                        color: activeSize === size.value ? '#fff' : '#555',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: size.value * 2,
+                                            height: size.value * 2,
+                                            borderRadius: '50%',
+                                            backgroundColor: activeSize === size.value ? '#fff' : '#555',
+                                            minWidth: 2,
+                                            minHeight: 2,
+                                        }}
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.05)' }} />
+
+                    {/* Colors */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        {COLORS.map(color => (
+                            <button
+                                key={color}
+                                onClick={() => onColorChange(color)}
+                                style={{
+                                    width: '100%',
+                                    aspectRatio: '1',
+                                    borderRadius: '50%',
+                                    backgroundColor: color,
+                                    border: activeColor === color ? '3px solid #fff' : '2px solid transparent',
+                                    outline: activeColor === color ? '2px solid #007AFF' : 'none',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                }}
+                            />
+                        ))}
+                        <button
+                            onClick={() => colorInputRef.current?.click()}
+                            style={{
+                                width: '100%',
+                                aspectRatio: '1',
+                                borderRadius: '50%',
+                                background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
+                                border: '2px solid #fff',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}
+                        >
+                            <input
+                                ref={colorInputRef}
+                                type="color"
+                                value={activeColor}
+                                onChange={(e) => onColorChange(e.target.value)}
+                                style={{ position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }}
+                            />
+                        </button>
+                    </div>
                 </div>
-                <div style={{ height: 80, display: 'flex', alignItems: 'center' }}>
-                    <input
-                        type="range"
-                        min="1"
-                        max="40"
-                        step="1"
-                        value={activeSize}
-                        onChange={(e) => onSizeChange(Number(e.target.value))}
-                        style={{
-                            WebkitAppearance: 'slider-vertical',
-                            width: 6,
-                            height: '100%',
-                            cursor: 'pointer',
-                        } as React.CSSProperties}
-                    />
-                </div>
-                <span style={{ fontSize: 9, fontWeight: 'bold', color: '#666' }}>{activeSize}px</span>
-            </div>
+            )}
 
-            <div style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.08)', margin: '0 4px' }} />
-
-            {/* Colors Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {COLORS.map(color => (
-                    <button
-                        key={color}
-                        onClick={() => {
-                            onColorChange(color)
-                            onToolChange('pen')
-                        }}
-                        style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            backgroundColor: color,
-                            border: '2px solid #fff',
-                            outline: activeColor === color && activeTool === 'pen' ? '2px solid #007AFF' : 'none',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            cursor: 'pointer',
-                            transition: 'transform 0.2s',
-                            transform: activeColor === color && activeTool === 'pen' ? 'scale(1.1)' : 'scale(1)',
-                        }}
-                        aria-label={`Select ${color}`}
-                    />
-                ))}
-
-                {/* Color Wheel Functional */}
-                <button
-                    onClick={() => colorInputRef.current?.click()}
+            {openPopup === 'eraser' && (
+                <div
                     style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
-                        border: '2px solid #fff',
-                        outline: !COLORS.includes(activeColor) && activeTool === 'pen' ? '2px solid #007AFF' : 'none',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s',
-                        transform: !COLORS.includes(activeColor) && activeTool === 'pen' ? 'scale(1.1)' : 'scale(1)',
-                        position: 'relative',
-                        overflow: 'hidden'
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderRadius: 20,
+                        padding: 16,
+                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                        border: '1px solid rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        pointerEvents: 'auto',
+                        minWidth: 200,
                     }}
-                    title="Pick a custom color"
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <input
-                        ref={colorInputRef}
-                        type="color"
-                        value={activeColor}
-                        onChange={(e) => {
-                            onColorChange(e.target.value)
-                            onToolChange('pen')
-                        }}
-                        style={{
-                            position: 'absolute',
-                            top: -10,
-                            left: -10,
-                            width: 50,
-                            height: 50,
-                            opacity: 0,
-                            cursor: 'pointer'
-                        }}
-                    />
-                </button>
-            </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Eraser Size</span>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {ERASER_SIZES.map(size => (
+                                <button
+                                    key={size.value}
+                                    onClick={() => onSizeChange(size.value)}
+                                    style={{
+                                        flex: 1,
+                                        height: 48,
+                                        borderRadius: 12,
+                                        border: 'none',
+                                        backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
+                                        color: activeSize === size.value ? '#fff' : '#555',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 4,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: Math.min(24, size.value / 2),
+                                            height: Math.min(24, size.value / 2),
+                                            borderRadius: 4,
+                                            backgroundColor: activeSize === size.value ? '#fff' : '#555',
+                                        }}
+                                    />
+                                    {/* <span style={{ fontSize: 9, fontWeight: 600 }}>{size.label}</span> */}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -242,22 +355,103 @@ function ToolButton({ children, active, onClick, label, disabled }: { children: 
             onClick={onClick}
             disabled={disabled}
             style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
+                width: 44,
+                height: 44,
+                borderRadius: 12,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: active ? '#007AFF' : 'transparent',
-                color: active ? '#fff' : '#333',
+                backgroundColor: active ? '#E3F2FD' : 'transparent',
+                color: active ? '#007AFF' : '#555',
                 border: 'none',
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 opacity: disabled ? 0.3 : 1,
             }}
             title={label}
         >
             {children}
         </button>
+    )
+}
+
+function SubToolButton({ children, active, onClick, label }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                flex: 1,
+                padding: '12px 8px',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: active ? '#007AFF' : '#f5f5f7',
+                color: active ? '#fff' : '#555',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+            }}
+        >
+            {children}
+            <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+        </button>
+    )
+}
+
+// Icons
+function PenIcon({ type }: { type: 'pen' | 'pencil' | 'crayon' }) {
+    if (type === 'pencil') {
+        return (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+        )
+    }
+    if (type === 'crayon') {
+        return (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m11 4 7 7-9 9-4 1 1-4 9-9z" />
+                <path d="M15 8l4 4" />
+                <path d="m8 11 4 4" />
+            </svg>
+        )
+    }
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m12 19-7-7 11-11 7 7-11 11z" />
+            <path d="m5 12-2 10 10-2" />
+        </svg>
+    )
+}
+
+function EraserIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21H7Z" />
+            <path d="m22 21-5-5" />
+            <path d="m5 11 9 9" />
+        </svg>
+    )
+}
+
+function TextIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="4 7 4 4 20 4 20 7" />
+            <line x1="9" y1="20" x2="15" y2="20" />
+            <line x1="12" y1="4" x2="12" y2="20" />
+        </svg>
+    )
+}
+
+function UndoIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+        </svg>
     )
 }

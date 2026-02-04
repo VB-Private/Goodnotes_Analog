@@ -26,13 +26,19 @@ export function drawStrokePath(
   points: StrokePoint[],
   options: DrawOptions = {}
 ) {
-  const { color = '#000', size = 20, tool = 'pen' } = options
+  const { color = '#000', size = 2, tool = 'pen' } = options
   if (points.length < 2) return
 
+  ctx.globalAlpha = 1.0
   if (tool === 'eraser') {
     ctx.globalCompositeOperation = 'destination-out'
   } else {
     ctx.globalCompositeOperation = 'source-over'
+    if (tool === 'pencil') {
+      ctx.globalAlpha = 0.6
+    } else if (tool === 'crayon') {
+      ctx.globalAlpha = 0.4
+    }
   }
 
   ctx.strokeStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color

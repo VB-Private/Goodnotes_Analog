@@ -29,6 +29,7 @@ export default function EditablePage({
   const pointsRef = useRef<StrokePoint[]>([])
   const lastLineWidthRef = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
+  const cursorRef = useRef<HTMLDivElement>(null)
 
   // Draw background strokes (saved ones)
   useEffect(() => {
@@ -82,10 +83,16 @@ export default function EditablePage({
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
 
+      ctx.globalAlpha = 1.0
       if (activeTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out'
       } else {
         ctx.globalCompositeOperation = 'source-over'
+        if (activeTool === 'pencil') {
+          ctx.globalAlpha = 0.6
+        } else if (activeTool === 'crayon') {
+          ctx.globalAlpha = 0.4
+        }
       }
 
       const point = points[l]
@@ -152,6 +159,11 @@ export default function EditablePage({
       }
 
       const pos = getPos(e)
+      if (cursorRef.current) {
+        cursorRef.current.style.display = 'block'
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      }
+
       isDrawingRef.current = true
       pointsRef.current = [pos]
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
@@ -159,11 +171,28 @@ export default function EditablePage({
       if (e.cancelable) e.preventDefault()
     }
 
+    const handlePointerMove = (e: MouseEvent | TouchEvent) => {
+      const pos = getPos(e)
+      if (cursorRef.current) {
+        cursorRef.current.style.display = 'block'
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      }
+    }
+
+    const handlePointerLeave = () => {
+      if (cursorRef.current) {
+        cursorRef.current.style.display = 'none'
+      }
+    }
+
     const handleMove = (e: TouchEvent | MouseEvent) => {
       if (!isDrawingRef.current) return
       if (e.cancelable) e.preventDefault()
 
       const pos = getPos(e)
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      }
       pointsRef.current.push(pos)
       drawSegment(pointsRef.current)
 
@@ -202,6 +231,9 @@ export default function EditablePage({
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
 
+    canvas.addEventListener('mousemove', handlePointerMove)
+    canvas.addEventListener('mouseleave', handlePointerLeave)
+
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
     return () => {
@@ -213,6 +245,9 @@ export default function EditablePage({
       canvas.removeEventListener('mousedown', handleDown)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
+
+      canvas.removeEventListener('mousemove', handlePointerMove)
+      canvas.removeEventListener('mouseleave', handlePointerLeave)
     }
   }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange])
 
@@ -260,9 +295,30 @@ export default function EditablePage({
             width: PAGE_WIDTH,
             height: PAGE_HEIGHT,
             touchAction: 'manipulation',
-            cursor: activeTool === 'text' ? 'text' : 'crosshair',
+            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : 'crosshair',
           }}
         />
+        {activeTool === 'eraser' && (
+          <div
+            ref={cursorRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: activeSize * 1.5, // Heuristic to match the log-width better
+              height: activeSize * 1.5,
+              border: '1px solid rgba(0,0,0,0.2)',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              zIndex: 100,
+              display: 'none',
+              marginLeft: -(activeSize * 1.5) / 2,
+              marginTop: -(activeSize * 1.5) / 2,
+              backgroundColor: 'rgba(255, 255, 255, 0.4)',
+              boxShadow: '0 0 4px rgba(0,0,0,0.1)',
+            }}
+          />
+        )}
         {(page.textFields || []).map((tf) => (
           <TextFieldComponent
             key={tf.id}

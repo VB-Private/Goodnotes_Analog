@@ -22,10 +22,43 @@ export default function NotebookView() {
   const [scale, setScale] = useState(1)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
+
   // Toolkit state
-  const [activeTool, setActiveTool] = useState<ToolType>('pen')
-  const [activeColor, setActiveColor] = useState('#000000')
-  const [activeSize, setActiveSize] = useState(20)
+  const [activeTool, setActiveTool] = useState<ToolType>(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved ? JSON.parse(saved).activeTool : 'pen'
+  })
+  const [activeColor, setActiveColor] = useState(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved ? JSON.parse(saved).activeColor : '#000000'
+  })
+  const [penSize, setPenSize] = useState(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved ? JSON.parse(saved).penSize : 5
+  })
+  const [eraserSize, setEraserSize] = useState(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved ? JSON.parse(saved).eraserSize : 40
+  })
+
+  useEffect(() => {
+    localStorage.setItem(TOOLKIT_STORAGE_KEY, JSON.stringify({
+      activeTool,
+      activeColor,
+      penSize,
+      eraserSize
+    }))
+  }, [activeTool, activeColor, penSize, eraserSize])
+
+  const activeSize = activeTool === 'eraser' ? eraserSize : penSize
+  const onSizeChange = (size: number) => {
+    if (activeTool === 'eraser') {
+      setEraserSize(size)
+    } else {
+      setPenSize(size)
+    }
+  }
   const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
   const [modifiedStack, setModifiedStack] = useState<string[]>([])
   const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
@@ -232,7 +265,7 @@ export default function NotebookView() {
         activeSize={activeSize}
         onToolChange={setActiveTool}
         onColorChange={setActiveColor}
-        onSizeChange={setActiveSize}
+        onSizeChange={onSizeChange}
         onUndo={handleUndo}
         canUndo={modifiedStack.length > 0}
       />
