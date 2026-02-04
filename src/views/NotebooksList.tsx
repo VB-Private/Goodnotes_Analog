@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getNotebooks, createNotebook, updateNotebook, deleteNotebook, getPages, deletePage } from '../storage/db'
 import type { Notebook } from '../types'
+import Loader from '../components/Loader'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -70,7 +71,7 @@ export default function NotebooksList() {
     setActiveMenuId(null)
   }
 
-  if (loading) return <div>Loading…</div>
+  if (loading) return <Loader />
 
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>

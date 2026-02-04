@@ -5,6 +5,7 @@ import type { Notebook, Page, PageTemplate, ToolType } from '../types'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
+import Loader from '../components/Loader'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 
 function generateId(): string {
@@ -176,64 +177,52 @@ export default function NotebookView() {
     setActiveMenuPageId(null)
   }
 
-  if (loading || !notebook) return <div>Loading…</div>
+  if (loading || !notebook) return <Loader />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
       <div
         style={{
-          position: 'absolute',
+          position: 'sticky',
           top: 16,
+          width: 'fit-content',
           left: 16,
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
           zIndex: 20,
           pointerEvents: 'none',
         }}
       >
-        <button
-          type="button"
-          onClick={() => navigate('/')}
+        <div
           style={{
             pointerEvents: 'auto',
-            padding: '4px 8px',
-            fontSize: '12px',
-            borderRadius: '4px',
-            border: '1px solid #ddd',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
             background: '#fff',
-            cursor: 'pointer',
+            border: '1px solid #e2e8f0',
+            borderRadius: '24px',
+            padding: '4px 16px 4px 4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
           }}
         >
-          Back
-        </button>
-        <h1 style={{ margin: 0, fontSize: '14px', color: '#666', pointerEvents: 'auto' }}>
-          {notebook.title}
-        </h1>
-        {inputType && (
-          <div
+          <button
+            type="button"
+            onClick={() => navigate('/')}
             style={{
-              padding: '4px 10px',
-              fontSize: '11px',
+              padding: '12px 16px',
+              fontSize: '12px',
               fontWeight: 600,
               borderRadius: '20px',
-              background: inputType === 'pen' ? '#E3F2FD' : '#F5F5F5',
-              color: inputType === 'pen' ? '#1976D2' : '#616161',
-              border: `1px solid ${inputType === 'pen' ? '#90CAF9' : '#E0E0E0'}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.3s ease',
-              pointerEvents: 'auto',
+              border: 'none',
+              background: '#f1f5f9',
+              color: '#475569',
+              cursor: 'pointer',
             }}
           >
-            <span style={{ fontSize: '14px' }}>{inputType === 'pen' ? '✏️' : '☝️'}</span>
-            {inputType.toUpperCase()}
-          </div>
-        )}
-        <div id="debug-info" style={{ display: 'flex', gap: 12, fontSize: '10px', color: '#999', pointerEvents: 'none' }}>
-          <span id="force"></span>
-          <span id="touches"></span>
+            Back
+          </button>
+          <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+            {notebook.title}
+          </h1>
         </div>
       </div>
 
@@ -332,9 +321,9 @@ export default function NotebookView() {
                       cursor: 'pointer',
                       padding: '4px',
                       borderRadius: '4px',
-                      fontSize: '20px',
+                      fontSize: '25px',
                       lineHeight: 1,
-                      color: '#ccc',
+                      color: '#5e5c5cff',
                       transition: 'color 0.2s',
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#666'}
@@ -402,8 +391,8 @@ export default function NotebookView() {
           position: 'fixed',
           bottom: 24,
           left: 24,
-          width: 40,
-          height: 40,
+          width: 60,
+          height: 60,
           borderRadius: '50%',
           border: '1px solid #ddd',
           background: '#fff',
