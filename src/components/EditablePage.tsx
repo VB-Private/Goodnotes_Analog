@@ -159,8 +159,13 @@ export default function EditablePage({
       }
 
       const pos = getPos(e)
-      if (cursorRef.current) {
+      if (cursorRef.current && activeTool === 'eraser') {
+        const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
         cursorRef.current.style.display = 'block'
+        cursorRef.current.style.width = `${diameter}px`
+        cursorRef.current.style.height = `${diameter}px`
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
       }
 
@@ -173,8 +178,13 @@ export default function EditablePage({
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
       const pos = getPos(e)
-      if (cursorRef.current) {
+      if (cursorRef.current && activeTool === 'eraser') {
+        const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
         cursorRef.current.style.display = 'block'
+        cursorRef.current.style.width = `${diameter}px`
+        cursorRef.current.style.height = `${diameter}px`
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
       }
     }
@@ -190,7 +200,12 @@ export default function EditablePage({
       if (e.cancelable) e.preventDefault()
 
       const pos = getPos(e)
-      if (cursorRef.current) {
+      if (cursorRef.current && activeTool === 'eraser') {
+        const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
+        cursorRef.current.style.width = `${diameter}px`
+        cursorRef.current.style.height = `${diameter}px`
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
       }
       pointsRef.current.push(pos)
@@ -305,17 +320,16 @@ export default function EditablePage({
               position: 'absolute',
               top: 0,
               left: 0,
-              width: activeSize * 1.5, // Heuristic to match the log-width better
-              height: activeSize * 1.5,
-              border: '1px solid rgba(0,0,0,0.2)',
+              width: 0, // Set dynamically
+              height: 0, // Set dynamically
+              border: '2px solid rgba(0,0,0,0.3)',
               borderRadius: '50%',
               pointerEvents: 'none',
               zIndex: 100,
               display: 'none',
-              marginLeft: -(activeSize * 1.5) / 2,
-              marginTop: -(activeSize * 1.5) / 2,
-              backgroundColor: 'rgba(255, 255, 255, 0.4)',
-              boxShadow: '0 0 4px rgba(0,0,0,0.1)',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.8), inset 0 0 8px rgba(0,0,0,0.1)',
+              backdropFilter: 'contrast(1.1) brightness(1.1)', // Subtle magnification look
             }}
           />
         )}

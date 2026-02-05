@@ -31,9 +31,9 @@ const PEN_SIZES = [
 ]
 
 const ERASER_SIZES = [
-    { label: 'Small', value: 25 },
     { label: 'Medium', value: 40 },
-    { label: 'Big', value: 80 },
+    { label: 'Big', value: 70 },
+    { label: 'Biggest', value: 100 },
 ]
 
 export default function Toolkit({
@@ -128,10 +128,14 @@ export default function Toolkit({
             <div style={barStyle}>
                 <ToolButton
                     active={isPenLike}
+                    activeColor={activeColor}
                     onClick={() => handleToolClick('pen')}
                     label="Pen Tools"
                 >
-                    <PenIcon type={activeTool === 'pencil' ? 'pencil' : activeTool === 'crayon' ? 'crayon' : 'pen'} />
+                    <PenIcon
+                        type={activeTool === 'pencil' ? 'pencil' : activeTool === 'crayon' ? 'crayon' : 'pen'}
+                        color={activeColor}
+                    />
                 </ToolButton>
 
                 <ToolButton
@@ -184,24 +188,27 @@ export default function Toolkit({
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                         <SubToolButton
                             active={activeTool === 'pen'}
+                            activeColor={activeColor}
                             onClick={() => onToolChange('pen')}
                             label="Pen"
                         >
-                            <PenIcon type="pen" />
+                            <PenIcon type="pen" color={activeColor} />
                         </SubToolButton>
                         <SubToolButton
                             active={activeTool === 'pencil'}
+                            activeColor={activeColor}
                             onClick={() => onToolChange('pencil')}
                             label="Pencil"
                         >
-                            <PenIcon type="pencil" />
+                            <PenIcon type="pencil" color={activeColor} />
                         </SubToolButton>
                         <SubToolButton
                             active={activeTool === 'crayon'}
+                            activeColor={activeColor}
                             onClick={() => onToolChange('crayon')}
                             label="Crayon"
                         >
-                            <PenIcon type="crayon" />
+                            <PenIcon type="crayon" color={activeColor} />
                         </SubToolButton>
                     </div>
 
@@ -220,7 +227,7 @@ export default function Toolkit({
                                         height: 40,
                                         borderRadius: 12,
                                         border: 'none',
-                                        backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
+                                        backgroundColor: activeSize === size.value ? (activeColor || '#007AFF') : '#f5f5f7',
                                         color: activeSize === size.value ? '#fff' : '#555',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -258,7 +265,7 @@ export default function Toolkit({
                                     borderRadius: '50%',
                                     backgroundColor: color,
                                     border: activeColor === color ? '3px solid #fff' : '2px solid transparent',
-                                    outline: activeColor === color ? '2px solid #007AFF' : 'none',
+                                    outline: activeColor === color ? `4px solid ${activeColor}` : 'none',
                                     cursor: 'pointer',
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                                 }}
@@ -288,68 +295,62 @@ export default function Toolkit({
                         </button>
                     </div>
                 </div>
-            )}
+            )
+            }
 
-            {openPopup === 'eraser' && (
-                <div
-                    style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(20px)',
-                        borderRadius: 20,
-                        padding: 16,
-                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
-                        border: '1px solid rgba(0,0,0,0.05)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 16,
-                        pointerEvents: 'auto',
-                        minWidth: 200,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Eraser Size</span>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            {ERASER_SIZES.map(size => (
-                                <button
-                                    key={size.value}
-                                    onClick={() => onSizeChange(size.value)}
-                                    style={{
-                                        flex: 1,
-                                        height: 48,
-                                        borderRadius: 12,
-                                        border: 'none',
-                                        backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
-                                        color: activeSize === size.value ? '#fff' : '#555',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: 4,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <div
+            {
+                openPopup === 'eraser' && (
+                    <div
+                        style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            backdropFilter: 'blur(20px)',
+                            borderRadius: 20,
+                            padding: 16,
+                            boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                            border: '1px solid rgba(0,0,0,0.05)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 16,
+                            pointerEvents: 'auto',
+                            minWidth: 200,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Eraser Size</span>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {ERASER_SIZES.map(size => (
+                                    <button
+                                        key={size.value}
+                                        onClick={() => onSizeChange(size.value)}
                                         style={{
-                                            width: Math.min(24, size.value / 2),
-                                            height: Math.min(24, size.value / 2),
-                                            borderRadius: 4,
-                                            backgroundColor: activeSize === size.value ? '#fff' : '#555',
+                                            flex: 1,
+                                            height: 48,
+                                            borderRadius: 12,
+                                            border: 'none',
+                                            backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
+                                            color: activeSize === size.value ? '#fff' : '#555',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 4,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
                                         }}
-                                    />
-                                    {/* <span style={{ fontSize: 9, fontWeight: 600 }}>{size.label}</span> */}
-                                </button>
-                            ))}
+                                    >
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }
 
-function ToolButton({ children, active, onClick, label, disabled }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, disabled?: boolean }) {
+function ToolButton({ children, active, onClick, label, disabled, activeColor }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, disabled?: boolean, activeColor?: string }) {
     return (
         <button
             onClick={onClick}
@@ -361,12 +362,13 @@ function ToolButton({ children, active, onClick, label, disabled }: { children: 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: active ? '#E3F2FD' : 'transparent',
-                color: active ? '#007AFF' : '#555',
-                border: 'none',
+                backgroundColor: active ? (activeColor ? 'rgba(0,0,0,0.05)' : '#E3F2FD') : 'transparent',
+                color: active ? (activeColor || '#007AFF') : '#555',
+                border: active && activeColor ? `2px solid ${activeColor}` : 'none',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 opacity: disabled ? 0.3 : 1,
+                boxSizing: 'border-box',
             }}
             title={label}
         >
@@ -375,7 +377,7 @@ function ToolButton({ children, active, onClick, label, disabled }: { children: 
     )
 }
 
-function SubToolButton({ children, active, onClick, label }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string }) {
+function SubToolButton({ children, active, onClick, label, activeColor }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, activeColor?: string }) {
     return (
         <button
             onClick={onClick}
@@ -387,24 +389,26 @@ function SubToolButton({ children, active, onClick, label }: { children: React.R
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 4,
-                backgroundColor: active ? '#007AFF' : '#f5f5f7',
-                color: active ? '#fff' : '#555',
-                border: 'none',
+                backgroundColor: active ? (activeColor ? `${activeColor}10` : 'rgba(0,122,255,0.06)') : '#f5f5f7',
+                color: active ? (activeColor || '#007AFF') : '#555',
+                border: active ? `2px solid ${activeColor || '#007AFF'}` : '2px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
+                boxSizing: 'border-box',
             }}
         >
             {children}
-            <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+            {/* <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span> */}
         </button>
     )
 }
 
 // Icons
-function PenIcon({ type }: { type: 'pen' | 'pencil' | 'crayon' }) {
+function PenIcon({ type, color }: { type: 'pen' | 'pencil' | 'crayon', color?: string }) {
+    const strokeColor = color || 'currentColor'
     if (type === 'pencil') {
         return (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
@@ -412,7 +416,7 @@ function PenIcon({ type }: { type: 'pen' | 'pencil' | 'crayon' }) {
     }
     if (type === 'crayon') {
         return (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m11 4 7 7-9 9-4 1 1-4 9-9z" />
                 <path d="M15 8l4 4" />
                 <path d="m8 11 4 4" />
@@ -420,7 +424,7 @@ function PenIcon({ type }: { type: 'pen' | 'pencil' | 'crayon' }) {
         )
     }
     return (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m12 19-7-7 11-11 7 7-11 11z" />
             <path d="m5 12-2 10 10-2" />
         </svg>
