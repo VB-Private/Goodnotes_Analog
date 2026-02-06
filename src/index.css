@@ -1,3 +1,13 @@
+html,
+body,
+#root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 * {
     box-sizing: border-box;
     -webkit-touch-callout: none;
@@ -5,9 +15,11 @@
 }
 
 body {
-    margin: 0;
     font-family: system-ui, sans-serif;
     overscroll-behavior: none;
     user-select: none;
     -webkit-user-select: none;
+    background: #ffffff6f;
+    /* Dark background matches the notebook view */
+    color: #fff;
 }

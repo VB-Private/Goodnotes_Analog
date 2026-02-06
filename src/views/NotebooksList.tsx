@@ -74,8 +74,15 @@ export default function NotebooksList() {
   if (loading) return <Loader />
 
   return (
-    <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Notebooks</h1>
+    <div style={{
+      height: '100dvh',
+      overflowY: 'auto',
+      padding: '24px 24px calc(24px + env(safe-area-inset-bottom)) 24px',
+      maxWidth: 720,
+      margin: '0 auto',
+      background: '#ffffffff',
+    }}>
+      <h1 style={{ marginBottom: 16, color: '#000000ff' }}>Notebooks</h1>
       <button
         type="button"
         onClick={handleCreateNotebook}
@@ -96,9 +103,10 @@ export default function NotebooksList() {
                   padding: 12,
                   textAlign: 'left',
                   cursor: 'pointer',
-                  border: '1px solid #ccc',
+                  border: '1px solid #ef1c1cff',
                   borderRadius: 8,
-                  background: '#fff',
+                  background: '#8c0b0bff',
+                  color: '#fff',
                 }}
               >
                 {nb.title}
@@ -111,8 +119,8 @@ export default function NotebooksList() {
                   }}
                   style={{
                     padding: '8px',
-                    background: 'none',
-                    border: '1px solid #ddd',
+                    background: '#ffffffff',
+                    border: '1px solid #333',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontSize: '16px',
@@ -128,10 +136,10 @@ export default function NotebooksList() {
                       position: 'absolute',
                       top: '100%',
                       right: 0,
-                      background: 'white',
-                      border: '1px solid #ddd',
+                      background: '#ffffffff',
+                      border: '1px solid #444',
                       borderRadius: '4px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                       padding: '4px 0',
                       minWidth: '120px',
                       zIndex: 20,
@@ -151,9 +159,9 @@ export default function NotebooksList() {
                         border: 'none',
                         cursor: 'pointer',
                         fontSize: '14px',
-                        color: '#333',
+                        color: '#eee',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#3d3d3d'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                     >
                       Rename
@@ -172,9 +180,9 @@ export default function NotebooksList() {
                         border: 'none',
                         cursor: 'pointer',
                         fontSize: '14px',
-                        color: '#d32f2f',
+                        color: '#ff4d4d',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#3d3d3d'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                     >
                       Delete

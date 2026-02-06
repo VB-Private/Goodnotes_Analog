@@ -33,7 +33,7 @@ const PEN_SIZES = [
 const ERASER_SIZES = [
     { label: 'Medium', value: 40 },
     { label: 'Big', value: 70 },
-    { label: 'Biggest', value: 100 },
+    { label: 'Biggest', value: 140 },
 ]
 
 export default function Toolkit({
@@ -265,7 +265,7 @@ export default function Toolkit({
                                     borderRadius: '50%',
                                     backgroundColor: color,
                                     border: activeColor === color ? '3px solid #fff' : '2px solid transparent',
-                                    outline: activeColor === color ? `4px solid ${activeColor}` : 'none',
+                                    outline: activeColor === color ? '2px solid #007AFF' : 'none',
                                     cursor: 'pointer',
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                                 }}
@@ -339,6 +339,15 @@ export default function Toolkit({
                                             transition: 'all 0.2s',
                                         }}
                                     >
+                                        <div
+                                            style={{
+                                                width: Math.min(24, size.value / 2),
+                                                height: Math.min(24, size.value / 2),
+                                                borderRadius: 5,
+                                                backgroundColor: activeSize === size.value ? '#fff' : '#555',
+                                            }}
+                                        />
+                                        {/* <span style={{ fontSize: 9, fontWeight: 600 }}>{size.label}</span> */}
                                     </button>
                                 ))}
                             </div>
@@ -398,7 +407,7 @@ function SubToolButton({ children, active, onClick, label, activeColor }: { chil
             }}
         >
             {children}
-            {/* <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span> */}
+            <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
         </button>
     )
 }

@@ -213,12 +213,20 @@ export default function NotebookView() {
   if (loading || !notebook) return <Loader />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100dvh',
+      width: '100vw',
+      background: '#0000006f', // Dark background for the entire view
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
+      {/* Header Container */}
       <div
         style={{
-          position: 'sticky',
+          position: 'absolute',
           top: 16,
-          width: 'fit-content',
           left: 16,
           zIndex: 20,
           pointerEvents: 'none',
@@ -270,18 +278,18 @@ export default function NotebookView() {
         canUndo={modifiedStack.length > 0}
       />
 
+      {/* Main Scroll Container */}
       <div
         ref={scrollContainerRef}
         style={{
-          flex: 1,
-          // marginTop: "20px",
-          minHeight: 0,
+          // flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          scrollSnapType: 'y mandatory',
-          paddingBottom: 24, // Reduced from 56
-          paddingRight: 60, // Space for toolkit
+          // scrollSnapType: 'y mandatory',
+          paddingBottom: 'calc(24px + env(safe-area-inset-bottom))',
+          // paddingRight: 60, // Space for toolkit
+          // paddingTop: 80, // Space for header
         }}
       >
         <div
@@ -289,17 +297,19 @@ export default function NotebookView() {
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
+            minHeight: '100%',
           }}
         >
           {pages.length === 0 ? (
             <div
               style={{
-                minHeight: 'calc(100vh - 120px)',
+                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#888',
                 fontSize: 15,
+                minHeight: '400px'
               }}
             >
               Tap + to add your first page
@@ -422,7 +432,7 @@ export default function NotebookView() {
         onClick={() => setShowAddModal(true)}
         style={{
           position: 'fixed',
-          bottom: 24,
+          bottom: 'calc(24px + env(safe-area-inset-bottom))',
           left: 24,
           width: 60,
           height: 60,
