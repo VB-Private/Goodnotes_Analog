@@ -25,11 +25,13 @@ export default function EditablePage({
   onInputTypeChange
 }: EditablePageProps) {
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
+  const laserCanvasRef = useRef<HTMLCanvasElement>(null)
   const isDrawingRef = useRef(false)
   const pointsRef = useRef<StrokePoint[]>([])
   const lastLineWidthRef = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
+  const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
 
   // Draw background strokes (saved ones)
   useEffect(() => {
@@ -38,10 +40,82 @@ export default function EditablePage({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Clear and redraw all saved strokes
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
     drawAllStrokes(ctx, page.strokes, null)
   }, [page.strokes, scale])
+
+  // Laser animation loop
+  useEffect(() => {
+    const canvas = laserCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animationFrameId: number
+
+    const render = () => {
+      const now = Date.now()
+
+      // Update the red to prune expired strokes
+      laserStrokesRef.current = laserStrokesRef.current.filter(s => now - s.timestamp < 2000)
+      const activeLaserStrokes = laserStrokesRef.current
+
+      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+
+      activeLaserStrokes.forEach(s => {
+        const age = now - s.timestamp
+        const opacity = Math.max(0, 1 - age / 2000)
+
+        ctx.strokeStyle = `rgba(255, 0, 0, ${opacity})`
+        ctx.shadowBlur = 10 * opacity
+        ctx.shadowColor = 'red'
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = 10
+
+        if (s.points.length < 2) return
+
+        ctx.beginPath()
+        ctx.moveTo(s.points[0].x, s.points[0].y)
+        for (let i = 1; i < s.points.length; i++) {
+          ctx.lineTo(s.points[i].x, s.points[i].y)
+        }
+        ctx.stroke()
+
+        // Reset shadow for next stroke
+        ctx.shadowBlur = 0
+      })
+
+      // Draw current stroke if active
+      if (isDrawingRef.current && activeTool === 'laser' && pointsRef.current.length >= 2) {
+        ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
+        ctx.shadowBlur = 10
+        ctx.shadowColor = 'red'
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = 10
+
+        ctx.beginPath()
+        ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
+        for (let i = 1; i < pointsRef.current.length; i++) {
+          ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+        }
+        ctx.stroke()
+        ctx.shadowBlur = 0
+      }
+
+      animationFrameId = requestAnimationFrame(render)
+    }
+
+    animationFrameId = requestAnimationFrame(render)
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [activeTool])
+
+  // Clear pointsRef when switching tools to avoid cross-tool trails
+  useEffect(() => {
+    pointsRef.current = []
+    isDrawingRef.current = false
+  }, [activeTool])
 
   // High-performance event listeners
   useEffect(() => {
@@ -86,6 +160,11 @@ export default function EditablePage({
       ctx.globalAlpha = 1.0
       if (activeTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out'
+      } else if (activeTool === 'laser') {
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
+        ctx.shadowBlur = 10
+        ctx.shadowColor = 'red'
       } else {
         ctx.globalCompositeOperation = 'source-over'
         if (activeTool === 'pencil') {
@@ -125,13 +204,15 @@ export default function EditablePage({
       }
 
       ctx.globalCompositeOperation = 'source-over'
+      ctx.shadowBlur = 0
     }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
-      const shouldProcess = isPen || isMouse || activeTool === 'text'
+      const isLaser = activeTool === 'laser'
+      const shouldProcess = isPen || isMouse || activeTool === 'text' || isLaser
 
       if (onInputTypeChange) {
         onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
@@ -209,7 +290,9 @@ export default function EditablePage({
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
       }
       pointsRef.current.push(pos)
-      drawSegment(pointsRef.current)
+      if (activeTool !== 'laser') {
+        drawSegment(pointsRef.current)
+      }
 
       requestIdleCallback(() => {
         if (forceEl) forceEl.textContent = 'force = ' + pos.pressure.toFixed(3)
@@ -225,14 +308,18 @@ export default function EditablePage({
       isDrawingRef.current = false
 
       if (pointsRef.current.length >= 2) {
-        const stroke: Stroke = {
-          id: crypto.randomUUID(),
-          points: [...pointsRef.current],
-          color: activeColor,
-          tool: activeTool,
-          size: activeSize
+        if (activeTool === 'laser') {
+          laserStrokesRef.current.push({ points: [...pointsRef.current], timestamp: Date.now() })
+        } else {
+          const stroke: Stroke = {
+            id: crypto.randomUUID(),
+            points: [...pointsRef.current],
+            color: activeColor,
+            tool: activeTool,
+            size: activeSize
+          }
+          onUpdate({ ...page, strokes: [...page.strokes, stroke] })
         }
-        onUpdate({ ...page, strokes: [...page.strokes, stroke] })
       }
       pointsRef.current = []
     }
@@ -310,7 +397,21 @@ export default function EditablePage({
             width: PAGE_WIDTH,
             height: PAGE_HEIGHT,
             touchAction: 'manipulation',
-            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : 'crosshair',
+            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
+          }}
+        />
+        <canvas
+          ref={laserCanvasRef}
+          width={PAGE_WIDTH}
+          height={PAGE_HEIGHT}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: PAGE_WIDTH,
+            height: PAGE_HEIGHT,
+            pointerEvents: 'none',
+            zIndex: 5,
           }}
         />
         {activeTool === 'eraser' && (

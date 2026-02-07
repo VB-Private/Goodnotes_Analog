@@ -1,5 +1,5 @@
 export type PageTemplate = 'blank' | 'squared' | 'lined'
-export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text'
+export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser'
 
 export interface StrokePoint {
   x: number
