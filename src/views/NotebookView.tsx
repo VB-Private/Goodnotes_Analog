@@ -210,6 +210,21 @@ export default function NotebookView() {
     setActiveMenuPageId(null)
   }
 
+  async function handleClearPage(pageId: string) {
+    if (!confirm('Are you sure you want to clear all content on this page?')) return
+
+    const pageToClear = pages.find(p => p.id === pageId)
+    if (pageToClear) {
+      const updatedPage = {
+        ...pageToClear,
+        strokes: [],
+        textFields: []
+      }
+      handlePageUpdate(updatedPage)
+    }
+    setActiveMenuPageId(null)
+  }
+
   if (loading || !notebook) return <Loader />
 
   return (
@@ -392,6 +407,27 @@ export default function NotebookView() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          handleClearPage(p.id)
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#475569',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        Clear Page
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
                           handleDeletePage(p.id)
                         }}
                         style={{
@@ -404,6 +440,7 @@ export default function NotebookView() {
                           cursor: 'pointer',
                           fontSize: '14px',
                           color: '#d32f2f',
+                          borderTop: '1px solid #f1f5f9',
                         }}
                         onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
