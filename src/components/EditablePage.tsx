@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
-import { drawAllStrokes } from '../utils/drawing'
+import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
+import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke } from '../utils/geometry'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
 
@@ -32,6 +33,25 @@ export default function EditablePage({
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([])
+  const [selectionBox, setSelectionBox] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null)
+  const isDraggingSelectionRef = useRef(false)
+  const dragStartPosRef = useRef<StrokePoint | null>(null)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
+
+  const selectedStrokes = useMemo(() =>
+    page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
+    [page.strokes, selectedStrokeIds]
+  )
+
+  useEffect(() => {
+    if (selectedStrokes.length > 0) {
+      const allPoints = selectedStrokes.flatMap(s => s.points)
+      setSelectionBox(getBoundingBox(allPoints))
+    } else {
+      setSelectionBox(null)
+    }
+  }, [selectedStrokes])
 
   // Draw background strokes (saved ones)
   useEffect(() => {
@@ -42,7 +62,31 @@ export default function EditablePage({
 
     ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
     drawAllStrokes(ctx, page.strokes, null)
-  }, [page.strokes, scale])
+
+    // Highlight selected strokes
+    if (selectedStrokeIds.length > 0) {
+      ctx.save()
+      ctx.strokeStyle = '#007AFF'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 5])
+
+      selectedStrokes.forEach(s => {
+        // Simple bounding box for each stroke or glow
+        const box = getBoundingBox(s.points)
+        ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
+      })
+
+      if (selectionBox) {
+        ctx.strokeStyle = '#007AFF'
+        ctx.setLineDash([])
+        ctx.lineWidth = 1
+        ctx.strokeRect(selectionBox.minX - 8, selectionBox.minY - 8, (selectionBox.maxX - selectionBox.minX) + 16, (selectionBox.maxY - selectionBox.minY) + 16)
+
+        // Draw drag handle indicator (optional, for now just the box)
+      }
+      ctx.restore()
+    }
+  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes])
 
   // Laser animation loop
   useEffect(() => {
@@ -102,6 +146,25 @@ export default function EditablePage({
         }
         ctx.stroke()
         ctx.shadowBlur = 0
+      }
+
+      // Draw lasso path
+      if (activeTool === 'lasso' && pointsRef.current.length >= 2) {
+        ctx.strokeStyle = '#007AFF'
+        ctx.lineWidth = 2
+        ctx.setLineDash([5, 5])
+        ctx.beginPath()
+        ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
+        for (let i = 1; i < pointsRef.current.length; i++) {
+          ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+        }
+        if (!isDrawingRef.current) ctx.closePath()
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Fill area slightly
+        ctx.fillStyle = 'rgba(0, 122, 255, 0.1)'
+        ctx.fill()
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -240,6 +303,20 @@ export default function EditablePage({
       }
 
       const pos = getPos(e)
+
+      if (activeTool === 'lasso') {
+        // Check if clicking inside current selection to drag
+        if (selectionBox && isPointInBox(pos, selectionBox, 20)) {
+          isDraggingSelectionRef.current = true
+          dragStartPosRef.current = pos
+          if (e.cancelable) e.preventDefault()
+          return
+        } else {
+          // Start a new lasso selection
+          setSelectedStrokeIds([])
+        }
+      }
+
       if (cursorRef.current && activeTool === 'eraser') {
         const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
         cursorRef.current.style.display = 'block'
@@ -277,10 +354,35 @@ export default function EditablePage({
     }
 
     const handleMove = (e: TouchEvent | MouseEvent) => {
+      const pos = getPos(e)
+
+      if (isDraggingSelectionRef.current && dragStartPosRef.current) {
+        if (e.cancelable) e.preventDefault()
+        const dx = pos.x - dragStartPosRef.current.x
+        const dy = pos.y - dragStartPosRef.current.y
+        dragOffsetRef.current = { x: dx, y: dy }
+
+        // Visual feedback: clear and redraw everything with offset selected strokes
+        if (ctx) {
+          ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+          // Draw unselected strokes
+          page.strokes.forEach(s => {
+            if (!selectedStrokeIds.includes(s.id)) {
+              drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
+            }
+          })
+          // Draw selected strokes with offset
+          selectedStrokes.forEach(s => {
+            const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
+            drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
+          })
+        }
+        return
+      }
+
       if (!isDrawingRef.current) return
       if (e.cancelable) e.preventDefault()
 
-      const pos = getPos(e)
       if (cursorRef.current && activeTool === 'eraser') {
         const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
         cursorRef.current.style.width = `${diameter}px`
@@ -290,7 +392,7 @@ export default function EditablePage({
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
       }
       pointsRef.current.push(pos)
-      if (activeTool !== 'laser') {
+      if (activeTool !== 'laser' && activeTool !== 'lasso') {
         drawSegment(pointsRef.current)
       }
 
@@ -304,12 +406,78 @@ export default function EditablePage({
     }
 
     const handleUp = () => {
+      if (isDraggingSelectionRef.current && dragStartPosRef.current) {
+        isDraggingSelectionRef.current = false
+        const { x: dx, y: dy } = dragOffsetRef.current
+
+        if (dx !== 0 || dy !== 0) {
+          const updatedStrokes = page.strokes.map(s => {
+            if (selectedStrokeIds.includes(s.id)) {
+              return {
+                ...s,
+                points: s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
+              }
+            }
+            return s
+          })
+          onUpdate({ ...page, strokes: updatedStrokes })
+        }
+        dragOffsetRef.current = { x: 0, y: 0 }
+        dragStartPosRef.current = null
+        return
+      }
+
       if (!isDrawingRef.current) return
       isDrawingRef.current = false
 
       if (pointsRef.current.length >= 2) {
         if (activeTool === 'laser') {
           laserStrokesRef.current.push({ points: [...pointsRef.current], timestamp: Date.now() })
+        } else if (activeTool === 'lasso') {
+          const lassoPolygon = [...pointsRef.current]
+
+          let hasChanges = false
+          const newStrokes: Stroke[] = []
+          const newSelectedIds: string[] = []
+
+          for (let i = 0; i < page.strokes.length; i++) {
+            const s = page.strokes[i]
+
+            // Check if this stroke is a candidate for selection (touched by lasso)
+            // AND not an eraser itself
+            if (s.tool !== 'eraser' && isStrokeInPolygon(s, lassoPolygon)) {
+              // Find relevant erasers (only those drawn AFTER this stroke)
+              const relevantErasers = page.strokes.slice(i + 1).filter(e => e.tool === 'eraser')
+
+              if (relevantErasers.length > 0) {
+                const fragments = splitStroke(s, relevantErasers)
+                if (fragments.length === 1 && fragments[0] === s) {
+                  // No split occurred
+                  newStrokes.push(s)
+                  newSelectedIds.push(s.id)
+                } else {
+                  // Split happened
+                  hasChanges = true
+                  newStrokes.push(...fragments)
+                  fragments.forEach(f => newSelectedIds.push(f.id))
+                }
+              } else {
+                // No erasers above it, just select
+                newStrokes.push(s)
+                newSelectedIds.push(s.id)
+              }
+            } else {
+              // Not selected or is eraser, just keep
+              newStrokes.push(s)
+            }
+          }
+
+          if (hasChanges) {
+            onUpdate({ ...page, strokes: newStrokes })
+            setSelectedStrokeIds(newSelectedIds)
+          } else {
+            setSelectedStrokeIds(newSelectedIds)
+          }
         } else {
           const stroke: Stroke = {
             id: crypto.randomUUID(),
@@ -351,7 +519,7 @@ export default function EditablePage({
       canvas.removeEventListener('mousemove', handlePointerMove)
       canvas.removeEventListener('mouseleave', handlePointerLeave)
     }
-  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange])
+  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes])
 
   function handleTextFieldUpdate(id: string, text: string) {
     onUpdate({

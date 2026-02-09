@@ -164,6 +164,14 @@ export default function Toolkit({
                     <LaserIcon />
                 </ToolButton>
 
+                <ToolButton
+                    active={activeTool === 'lasso'}
+                    onClick={() => handleToolClick('lasso')}
+                    label="Lasso"
+                >
+                    <LassoIcon />
+                </ToolButton>
+
                 <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 8px' }} />
 
                 <ToolButton
@@ -483,6 +491,16 @@ function LaserIcon() {
     return (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+    )
+}
+
+function LassoIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 22c-2.5 0-4.5-1-4.5-2.5S4.5 17 7 17s4.5 1 4.5 2.5S9.5 22 7 22z" />
+            <path d="M11.5 19.5c3 0 4.5-1.5 4.5-4.5V9c0-3-1.5-4.5-4.5-4.5S7 6 7 9" />
+            <path d="M11 5l3-3L17 5" />
         </svg>
     )
 }
