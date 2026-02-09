@@ -1,7 +1,21 @@
 export type PageTemplate = 'blank' | 'squared' | 'lined'
-export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso'
+export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'figures'
+
+export type FigureType = 'circle'
+
+export interface Figure {
+  id: string
+  type: FigureType
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+  strokeWidth: number
+}
 
 export interface StrokePoint {
+  // ... existing types ...
   x: number
   y: number
   pressure: number
@@ -38,5 +52,6 @@ export interface Page {
   template: PageTemplate
   strokes: Stroke[]
   textFields: TextField[]
+  figures?: Figure[]
   createdAt: number
 }

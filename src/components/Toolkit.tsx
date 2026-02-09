@@ -49,7 +49,7 @@ export default function Toolkit({
     const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
     const colorInputRef = useRef<HTMLInputElement>(null)
-    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | null>(null)
+    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'figures' | null>(null)
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -77,6 +77,13 @@ export default function Toolkit({
                 setOpenPopup(openPopup === 'eraser' ? null : 'eraser')
             } else {
                 onToolChange('eraser')
+                setOpenPopup(null)
+            }
+        } else if (tool === 'figures') {
+            if (activeTool === 'figures') {
+                setOpenPopup(openPopup === 'figures' ? null : 'figures')
+            } else {
+                onToolChange('figures')
                 setOpenPopup(null)
             }
         } else {
@@ -170,6 +177,14 @@ export default function Toolkit({
                     label="Lasso"
                 >
                     <LassoIcon />
+                </ToolButton>
+
+                <ToolButton
+                    active={activeTool === 'figures'}
+                    onClick={() => handleToolClick('figures')}
+                    label="Figures"
+                >
+                    <ShapesIcon />
                 </ToolButton>
 
                 <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 8px' }} />
@@ -373,6 +388,41 @@ export default function Toolkit({
                     </div>
                 )
             }
+
+            {openPopup === 'figures' && (
+                <div
+                    style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderRadius: 20,
+                        padding: 16,
+                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                        border: '1px solid rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        pointerEvents: 'auto',
+                        minWidth: 120,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                        <SubToolButton
+                            active={true}
+                            activeColor={activeColor}
+                            onClick={() => {
+                                onToolChange('figures')
+                                setOpenPopup(null)
+                            }}
+                            label="Circle"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                                <circle cx="12" cy="12" r="9" />
+                            </svg>
+                        </SubToolButton>
+                    </div>
+                </div>
+            )}
         </div >
     )
 }
@@ -501,6 +551,15 @@ function LassoIcon() {
             <path d="M7 22c-2.5 0-4.5-1-4.5-2.5S4.5 17 7 17s4.5 1 4.5 2.5S9.5 22 7 22z" />
             <path d="M11.5 19.5c3 0 4.5-1.5 4.5-4.5V9c0-3-1.5-4.5-4.5-4.5S7 6 7 9" />
             <path d="M11 5l3-3L17 5" />
+        </svg>
+    )
+}
+
+function ShapesIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="7" cy="7" r="5" />
+            <rect x="12" y="12" width="10" height="10" rx="2" />
         </svg>
     )
 }
