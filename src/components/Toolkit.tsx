@@ -98,7 +98,7 @@ export default function Toolkit({
         top: viewport.offsetTop + 16,
         transform: `translateX(-50%) scale(${1 / viewport.scale})`,
         transformOrigin: 'top center',
-        zIndex: 100,
+        zIndex: 120,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

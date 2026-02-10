@@ -38,9 +38,8 @@ export default function NotebooksList() {
       title: title.trim(),
       createdAt: Date.now(),
       pageIds: [],
+      pdfIds: [],
     }
-    await createNotebook(notebook)
-    setNotebooks((prev) => [...prev, notebook].sort((a, b) => a.createdAt - b.createdAt))
     await createNotebook(notebook)
     setNotebooks((prev) => [...prev, notebook].sort((a, b) => a.createdAt - b.createdAt))
     navigate(`/notebook/${id}`)

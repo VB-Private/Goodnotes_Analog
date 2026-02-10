@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage } from '../storage/db'
-import type { Notebook, Page, PageTemplate, ToolType } from '../types'
+import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile } from '../storage/db'
+import type { Notebook, Page, PageTemplate, ToolType, PDFFile } from '../types'
+import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
@@ -20,6 +21,8 @@ export default function NotebookView() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [scale, setScale] = useState(1)
+  const [focusedPDFId, setFocusedPDFId] = useState<string | null>(null)
+  const [pdfMetadata, setPdfMetadata] = useState<Record<string, { name: string }>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
@@ -75,9 +78,20 @@ export default function NotebookView() {
   useEffect(() => {
     if (!notebookId) return
     hasAttemptedInitialScroll.current = false
-    Promise.all([getNotebook(notebookId), getPages(notebookId)]).then(([nb, p]) => {
-      setNotebook(nb ?? null)
+    Promise.all([getNotebook(notebookId), getPages(notebookId)]).then(async ([nb, p]) => {
+      const notebook = nb ?? null
+      setNotebook(notebook)
       setPages(p.sort((a, b) => a.createdAt - b.createdAt))
+
+      if (notebook && notebook.pdfIds) {
+        const metadata: Record<string, { name: string }> = {}
+        await Promise.all(notebook.pdfIds.map(async (id) => {
+          const file = await getPDFFile(id)
+          if (file) metadata[id] = { name: file.name }
+        }))
+        setPdfMetadata(metadata)
+      }
+
       setLoading(false)
     })
   }, [notebookId])
@@ -186,6 +200,40 @@ export default function NotebookView() {
       const el = scrollContainerRef.current
       if (el) el.scrollTop = el.scrollHeight
     }, 0)
+  }
+
+  async function handleImportPDF(file: File) {
+    if (!notebookId || !notebook) return
+    console.log('[NotebookView] Starting PDF import:', file.name)
+    setLoading(true)
+
+    try {
+      const pdfId = generateId()
+      const pdfFile: PDFFile = {
+        id: pdfId,
+        blob: file,
+        name: file.name,
+        createdAt: Date.now()
+      }
+      console.log('[NotebookView] Saving PDF file to DB:', pdfId)
+      await savePDFFile(pdfFile)
+
+      const updatedNotebook: Notebook = {
+        ...notebook,
+        pdfIds: [...(notebook.pdfIds || []), pdfId],
+      }
+      await updateNotebook(updatedNotebook)
+
+      setNotebook(updatedNotebook)
+      setPdfMetadata(prev => ({ ...prev, [pdfId]: { name: file.name } }))
+      setShowAddModal(false)
+      setFocusedPDFId(pdfId) // Open it immediately
+    } catch (error) {
+      console.error('Failed to import PDF:', error)
+      alert('Failed to import PDF. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleDeletePage(pageId: string) {
@@ -313,157 +361,216 @@ export default function NotebookView() {
             flexDirection: 'column',
             gap: 16,
             minHeight: '100%',
+            padding: '80px 40px 0 40px', // Added padding for header and side spacing
           }}
         >
-          {pages.length === 0 ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#888',
-                fontSize: 15,
-                minHeight: '400px'
-              }}
-            >
-              Tap + to add your first page
+          {/* PDF Elements Section */}
+          {notebook.pdfIds && notebook.pdfIds.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 24, justifyContent: 'center' }}>
+              {notebook.pdfIds.map(pdfId => (
+                <div
+                  key={pdfId}
+                  onClick={() => setFocusedPDFId(pdfId)}
+                  style={{
+                    width: '180px',
+                    height: '240px',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)'
+                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                  }}
+                >
+                  <div style={{ flex: 1, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '48px' }}>📄</span>
+                  </div>
+                  <div style={{ padding: '12px', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#1e293b',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {pdfMetadata[pdfId]?.name || 'Loading...'}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : (
-            pages.map((p, i) => (
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            {pages.length === 0 ? (
               <div
-                key={p.id}
-                id={`page-wrapper-${p.id}`}
                 style={{
-                  position: 'relative',
-                  scrollSnapAlign: 'start',
-                  scrollSnapStop: 'always',
-                  minHeight: PAGE_HEIGHT * scale,
+                  flex: 1,
                   display: 'flex',
+                  alignItems: 'center',
                   justifyContent: 'center',
-                  alignItems: 'flex-start',
-                  paddingTop: 8,
+                  color: '#888',
+                  fontSize: 15,
+                  minHeight: '400px'
                 }}
               >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: `calc(50% - ${(PAGE_WIDTH * scale) / 2}px - 40px)`,
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    color: '#ccc',
-                    userSelect: 'none',
-                    textAlign: 'right',
-                    width: '30px',
-                  }}
-                >
-                  {i + 1}
-                </div>
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: `calc(50% + ${(PAGE_WIDTH * scale) / 2}px + 10px)`,
-                    zIndex: 10,
-                  }}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setActiveMenuPageId(activeMenuPageId === p.id ? null : p.id)
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      borderRadius: '4px',
-                      fontSize: '25px',
-                      lineHeight: 1,
-                      color: '#5e5c5cff',
-                      transition: 'color 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#666'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#ccc'}
-                  >
-                    ⋮
-                  </button>
-                  {activeMenuPageId === p.id && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        background: 'white',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                        padding: '4px 0',
-                        minWidth: '120px',
-                        zIndex: 20,
-                      }}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleClearPage(p.id)
-                        }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '8px 12px',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: '#475569',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                      >
-                        Clear Page
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeletePage(p.id)
-                        }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '8px 12px',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: '#d32f2f',
-                          borderTop: '1px solid #f1f5f9',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                      >
-                        Delete Page
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <EditablePage
-                  page={p}
-                  scale={scale}
-                  activeTool={activeTool}
-                  activeColor={activeColor}
-                  activeSize={activeSize}
-                  onUpdate={handlePageUpdate}
-                  onInputTypeChange={setInputType}
-                />
+                Tap + to add your first page
               </div>
-            ))
-          )}
+            ) : (
+              pages.map((p, i) => (
+                <div
+                  key={p.id}
+                  id={`page-wrapper-${p.id}`}
+                  style={{
+                    position: 'relative',
+                    scrollSnapAlign: 'start',
+                    scrollSnapStop: 'always',
+                    minHeight: PAGE_HEIGHT * scale,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                    paddingTop: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      left: `calc(50% - ${(PAGE_WIDTH * scale) / 2}px - 40px)`,
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      color: '#ccc',
+                      userSelect: 'none',
+                      textAlign: 'right',
+                      width: '30px',
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      left: `calc(50% + ${(PAGE_WIDTH * scale) / 2}px + 10px)`,
+                      zIndex: 10,
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActiveMenuPageId(activeMenuPageId === p.id ? null : p.id)
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        fontSize: '25px',
+                        lineHeight: 1,
+                        color: '#5e5c5cff',
+                        transition: 'color 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#666'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#ccc'}
+                    >
+                      ⋮
+                    </button>
+                    {activeMenuPageId === p.id && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          background: 'white',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          padding: '4px 0',
+                          minWidth: '120px',
+                          zIndex: 20,
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleClearPage(p.id)
+                          }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '8px 12px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            color: '#475569',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                        >
+                          Clear Page
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeletePage(p.id)
+                          }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '8px 12px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            color: '#d32f2f',
+                            borderTop: '1px solid #f1f5f9',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                        >
+                          Delete Page
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <EditablePage
+                    page={p}
+                    scale={scale}
+                    activeTool={activeTool}
+                    activeColor={activeColor}
+                    activeSize={activeSize}
+                    onUpdate={handlePageUpdate}
+                    onInputTypeChange={setInputType}
+                  />
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
+
       <button
         type="button"
         onClick={() => setShowAddModal(true)}
@@ -489,8 +596,23 @@ export default function NotebookView() {
       >
         +
       </button>
+
       {showAddModal && (
-        <AddPageModal onClose={() => setShowAddModal(false)} onSelect={handleAddPage} />
+        <AddPageModal
+          onClose={() => setShowAddModal(false)}
+          onSelect={handleAddPage}
+          onImportPDF={handleImportPDF}
+        />
+      )}
+
+      {focusedPDFId && (
+        <PdfFocusedView
+          pdfFileId={focusedPDFId}
+          onClose={() => setFocusedPDFId(null)}
+          activeTool={activeTool}
+          activeColor={activeColor}
+          activeSize={activeSize}
+        />
       )}
     </div>
   )

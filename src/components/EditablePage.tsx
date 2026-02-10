@@ -15,6 +15,8 @@ interface EditablePageProps {
   activeSize: number
   onUpdate: (page: Page) => void
   onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
+  width?: number
+  height?: number
 }
 
 export default function EditablePage({
@@ -24,8 +26,12 @@ export default function EditablePage({
   activeColor,
   activeSize,
   onUpdate,
-  onInputTypeChange
+  onInputTypeChange,
+  width: customWidth,
+  height: customHeight
 }: EditablePageProps) {
+  const width = customWidth || PAGE_WIDTH
+  const height = customHeight || PAGE_HEIGHT
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserCanvasRef = useRef<HTMLCanvasElement>(null)
   const isDrawingRef = useRef(false)
@@ -63,7 +69,7 @@ export default function EditablePage({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+    ctx.clearRect(0, 0, width, height)
     drawAllStrokes(ctx, page.strokes, null)
 
     // Highlight selected strokes
@@ -107,7 +113,7 @@ export default function EditablePage({
       laserStrokesRef.current = laserStrokesRef.current.filter(s => now - s.timestamp < 2000)
       const activeLaserStrokes = laserStrokesRef.current
 
-      ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+      ctx.clearRect(0, 0, width, height)
 
       activeLaserStrokes.forEach(s => {
         const age = now - s.timestamp
@@ -197,8 +203,8 @@ export default function EditablePage({
     function getPos(e: TouchEvent | MouseEvent) {
       const rect = canvas!.getBoundingClientRect()
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
-      const scaleX = PAGE_WIDTH / rect.width
-      const scaleY = PAGE_HEIGHT / rect.height
+      const scaleX = width / rect.width
+      const scaleY = height / rect.height
 
       let pressure = 0.5
       if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
@@ -359,7 +365,7 @@ export default function EditablePage({
             const canvas = strokeCanvasRef.current
             const ctx = canvas?.getContext('2d')
             if (ctx && canvas) {
-              ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+              ctx.clearRect(0, 0, width, height)
               drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
 
               // Re-draw selection if any
@@ -409,7 +415,7 @@ export default function EditablePage({
 
         // Visual feedback: clear and redraw everything with offset selected strokes
         if (ctx) {
-          ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+          ctx.clearRect(0, 0, width, height)
           // Draw unselected strokes
           page.strokes.forEach(s => {
             if (!selectedStrokeIds.includes(s.id)) {
@@ -445,7 +451,7 @@ export default function EditablePage({
 
           // Redraw to show the updated line
           if (ctx) {
-            ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+            ctx.clearRect(0, 0, width, height)
             drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
           }
         }
@@ -472,7 +478,7 @@ export default function EditablePage({
                 const canvas = strokeCanvasRef.current
                 const ctx = canvas?.getContext('2d')
                 if (ctx && canvas) {
-                  ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+                  ctx.clearRect(0, 0, width, height)
                   drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
                 }
               }
@@ -641,46 +647,52 @@ export default function EditablePage({
   return (
     <div
       style={{
-        width: PAGE_WIDTH * scale,
-        height: PAGE_HEIGHT * scale,
+        width: width * scale,
+        height: height * scale,
         overflow: 'hidden',
         margin: '0 auto',
       }}
     >
       <div
         style={{
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
+          width: width,
+          height: height,
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
           position: 'relative',
         }}
       >
-        <Paper template={page.template} width={PAGE_WIDTH} height={PAGE_HEIGHT} />
+        <Paper
+          template={page.template}
+          width={width}
+          height={height}
+          pdfFileId={page.pdfFileId}
+          pdfPageNumber={page.pdfPageNumber}
+        />
         <canvas
           ref={strokeCanvasRef}
-          width={PAGE_WIDTH}
-          height={PAGE_HEIGHT}
+          width={width}
+          height={height}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
+            width: width,
+            height: height,
             touchAction: 'manipulation',
             cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
           }}
         />
         <canvas
           ref={laserCanvasRef}
-          width={PAGE_WIDTH}
-          height={PAGE_HEIGHT}
+          width={width}
+          height={height}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
-            width: PAGE_WIDTH,
-            height: PAGE_HEIGHT,
+            width: width,
+            height: height,
             pointerEvents: 'none',
             zIndex: 5,
           }}

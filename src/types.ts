@@ -1,4 +1,4 @@
-export type PageTemplate = 'blank' | 'squared' | 'lined'
+export type PageTemplate = 'blank' | 'squared' | 'lined' | 'pdf'
 export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'figures'
 
 export interface StrokePoint {
@@ -29,6 +29,7 @@ export interface Notebook {
   title: string
   createdAt: number
   pageIds: string[]
+  pdfIds: string[]
   lastPageId?: string
 }
 
@@ -39,4 +40,20 @@ export interface Page {
   strokes: Stroke[]
   textFields: TextField[]
   createdAt: number
+  pdfFileId?: string
+  pdfPageNumber?: number
+}
+
+export interface PDFFile {
+  id: string
+  blob: Blob
+  name: string
+  createdAt: number
+}
+export interface PDFAnnotation {
+  id: string // Format: `${pdfFileId}_${pageNumber}`
+  pdfFileId: string
+  pageNumber: number
+  strokes: Stroke[]
+  textFields: TextField[]
 }

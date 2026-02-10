@@ -4,6 +4,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport'
 interface AddPageModalProps {
   onClose: () => void
   onSelect: (template: PageTemplate) => void
+  onImportPDF?: (file: File) => void
 }
 
 const TEMPLATES: { value: PageTemplate; label: string }[] = [
@@ -12,7 +13,7 @@ const TEMPLATES: { value: PageTemplate; label: string }[] = [
   { value: 'lined', label: 'Lined' },
 ]
 
-export default function AddPageModal({ onClose, onSelect }: AddPageModalProps) {
+export default function AddPageModal({ onClose, onSelect, onImportPDF }: AddPageModalProps) {
   const viewport = useVisualViewport()
 
   const scale = viewport ? 1 / viewport.scale : 1
@@ -63,11 +64,48 @@ export default function AddPageModal({ onClose, onSelect }: AddPageModalProps) {
               key={value}
               type="button"
               onClick={() => onSelect(value)}
-              style={{ padding: 12, cursor: 'pointer' }}
+              style={{
+                padding: '12px',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                background: '#fff',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#1e293b'
+              }}
             >
               {label}
             </button>
           ))}
+          <div style={{ height: '8px' }} />
+          <label
+            style={{
+              padding: '12px',
+              cursor: 'pointer',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#475569',
+              textAlign: 'center',
+              display: 'block'
+            }}
+          >
+            Import PDF
+            <input
+              type="file"
+              accept="application/pdf"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file && onImportPDF) {
+                  onImportPDF(file)
+                }
+              }}
+            />
+          </label>
         </div>
         <button type="button" onClick={onClose} style={{ marginTop: 16 }}>
           Cancel
