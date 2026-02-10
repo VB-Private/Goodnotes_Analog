@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg'],
       manifest: {
         name: 'Goodnotes Analog',
         short_name: 'Analog',
@@ -26,7 +26,30 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,mjs}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+              },
+            },
+          },
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'image-cache',
+              expiration: {
+                maxEntries: 10,
+              },
+            },
+          }
+        ]
       }
     })
   ],
