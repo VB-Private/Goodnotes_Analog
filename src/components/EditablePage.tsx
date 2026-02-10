@@ -1,11 +1,11 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField, Figure } from '../types'
+import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
 import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
 import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke } from '../utils/geometry'
+import { generateCirclePoints } from '../utils/shapeDetection'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
-import FigureComponent from './FigureComponent'
 
 interface EditablePageProps {
   page: Page
@@ -32,7 +32,6 @@ export default function EditablePage({
   const pointsRef = useRef<StrokePoint[]>([])
   const lastLineWidthRef = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
-  const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
   const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([])
@@ -286,27 +285,6 @@ export default function EditablePage({
       }
 
       if (!shouldProcess) return
-
-      if (activeTool === 'figures') {
-        const pos = getPos(e)
-        const newFigure: Figure = {
-          id: crypto.randomUUID(),
-          type: 'circle',
-          x: pos.x,
-          y: pos.y,
-          width: 100,
-          height: 100,
-          color: activeColor,
-          strokeWidth: activeSize / 2 || 2
-        }
-        setSelectedFigureId(newFigure.id)
-        onUpdate({
-          ...page,
-          figures: [...(page.figures || []), newFigure]
-        })
-        if (e.cancelable) e.preventDefault()
-        return
-      }
 
       if (activeTool === 'text') {
         const pos = getPos(e)
@@ -591,11 +569,20 @@ export default function EditablePage({
             setSelectedStrokeIds(newSelectedIds)
           }
         } else {
+          let finalPoints = [...pointsRef.current]
+
+          if (activeTool === 'figures') {
+            const snappedPoints = generateCirclePoints(pointsRef.current)
+            if (snappedPoints) {
+              finalPoints = snappedPoints
+            }
+          }
+
           const stroke: Stroke = {
             id: crypto.randomUUID(),
-            points: [...pointsRef.current],
+            points: finalPoints,
             color: activeColor,
-            tool: activeTool,
+            tool: activeTool === 'figures' ? 'pen' : activeTool,
             size: activeSize
           }
           onUpdate({ ...page, strokes: [...page.strokes, stroke] })
@@ -714,31 +701,6 @@ export default function EditablePage({
             }}
           />
         )}
-        {(page.figures || []).map((f) => (
-          <FigureComponent
-            key={f.id}
-            figure={f}
-            scale={scale}
-            isSelected={f.id === selectedFigureId}
-            onUpdate={(updated) => {
-              onUpdate({
-                ...page,
-                figures: (page.figures || []).map(fig => fig.id === updated.id ? updated : fig)
-              })
-            }}
-            onDelete={(id) => {
-              onUpdate({
-                ...page,
-                figures: (page.figures || []).filter(fig => fig.id !== id)
-              })
-              setSelectedFigureId(null)
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelectedFigureId(f.id)
-            }}
-          />
-        ))}
         {(page.textFields || []).map((tf) => (
           <TextFieldComponent
             key={tf.id}

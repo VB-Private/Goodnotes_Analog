@@ -414,7 +414,7 @@ export default function Toolkit({
                                 onToolChange('figures')
                                 setOpenPopup(null)
                             }}
-                            label="Circle"
+                            label="Circle Snapping"
                         >
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
                                 <circle cx="12" cy="12" r="9" />
