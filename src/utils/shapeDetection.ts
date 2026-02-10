@@ -36,12 +36,21 @@ export function generateCirclePoints(points: StrokePoint[]): StrokePoint[] | nul
     }
     const stdDev = Math.sqrt(variance / points.length)
 
-    // If variation is more than 25% of radius, it's probably not a circle
-    if (stdDev > avgRadius * 0.25) return null
+    // If variation is more than 40% of radius, it's definitely not a circle
+    // (Relaxed from 25% to better handle stylus jitter)
+    if (stdDev > avgRadius * 0.4) return null
+
+    // Check "closed-ness": Start and end points should be relatively close
+    const startP = points[0]
+    const endP = points[points.length - 1]
+    const distStartEnd = Math.sqrt(Math.pow(startP.x - endP.x, 2) + Math.pow(startP.y - endP.y, 2))
+
+    // If gap is more than 80% of radius, it's probably just an arc, not a circle
+    if (distStartEnd > avgRadius * 0.8) return null
 
     // Generate perfected points
     const perfectPoints: StrokePoint[] = []
-    const steps = 60
+    const steps = 64 // Slightly more steps for smoothness
 
     // Find average pressure to maintain the analog look
     let avgPressure = 0

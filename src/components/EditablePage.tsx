@@ -277,8 +277,12 @@ export default function EditablePage({
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
-      const isLaser = activeTool === 'laser'
-      const shouldProcess = isPen || isMouse || activeTool === 'text' || activeTool === 'figures' || isLaser
+
+      // Restrict drawing tools to Pen/Mouse only
+      const isDrawingTool = ['pen', 'pencil', 'crayon', 'figures', 'eraser', 'lasso', 'laser'].includes(activeTool)
+      const allowedInput = isPen || isMouse
+
+      const shouldProcess = activeTool === 'text' || (isDrawingTool && allowedInput)
 
       if (onInputTypeChange) {
         onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
@@ -334,8 +338,8 @@ export default function EditablePage({
       pointsRef.current = [pos]
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
 
-      // Start hold detection for pen tool
-      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
+      // Start hold detection for drawing tools
+      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
         isStraightLineModeRef.current = false
 
         const timeoutId = window.setTimeout(() => {
@@ -457,7 +461,7 @@ export default function EditablePage({
           holdTimeoutRef.current = null
 
           // Restart timeout
-          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
+          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
                 isStraightLineModeRef.current = true
