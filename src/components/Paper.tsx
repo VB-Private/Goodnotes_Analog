@@ -29,15 +29,23 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    canvas.width = width
-    canvas.height = height
+    const dpr = window.devicePixelRatio || 1
+    const qualityScale = Math.min(dpr * 1.5, 3)
+
+    canvas.width = width * qualityScale
+    canvas.height = height * qualityScale
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    // We do NOT use ctx.scale(qualityScale, qualityScale) globally anymore
 
     const startRendering = async () => {
-      // Clear background first
+      // Background
       ctx.fillStyle = PAPER_BG
-      ctx.fillRect(0, 0, width, height)
+      ctx.fillRect(0, 0, width * qualityScale, height * qualityScale)
 
       if (template === 'squared') {
+        ctx.save()
+        ctx.scale(qualityScale, qualityScale)
         ctx.strokeStyle = LINE_COLOR
         ctx.lineWidth = 1
         for (let x = 0; x <= width; x += GRID_SPACING) {
@@ -52,7 +60,10 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
           ctx.lineTo(width, y)
           ctx.stroke()
         }
+        ctx.restore()
       } else if (template === 'lined') {
+        ctx.save()
+        ctx.scale(qualityScale, qualityScale)
         ctx.strokeStyle = LINE_COLOR
         ctx.lineWidth = 1
         for (let y = LINE_SPACING; y < height; y += LINE_SPACING) {
@@ -61,6 +72,7 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
           ctx.lineTo(width, y)
           ctx.stroke()
         }
+        ctx.restore()
       } else if (template === 'pdf' && pdfFileId && pdfPageNumber) {
         try {
           const pdfFile = await getPDFFile(pdfFileId)
@@ -74,16 +86,18 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
           const page = await pdf.getPage(pdfPageNumber)
           if (isCancelled) return
 
-          const viewport = page.getViewport({ scale: 1 })
-          const scale = Math.min(width / viewport.width, height / viewport.height)
-          const scaledViewport = page.getViewport({ scale })
+          const nativeViewport = page.getViewport({ scale: 1 })
+          const baseScale = Math.min(width / nativeViewport.width, height / nativeViewport.height)
+          const viewport = page.getViewport({ scale: baseScale * qualityScale })
 
-          const offsetX = (width - scaledViewport.width) / 2
-          const offsetY = (height - scaledViewport.height) / 2
+          const offsetX = (width * qualityScale - viewport.width) / 2
+          const offsetY = (height * qualityScale - viewport.height) / 2
+
+          ctx.imageSmoothingEnabled = false
 
           const renderContext: any = {
             canvasContext: ctx,
-            viewport: scaledViewport,
+            viewport: viewport,
             transform: [1, 0, 0, 1, offsetX, offsetY]
           }
 
@@ -93,7 +107,7 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
           if (error.name === 'RenderingCancelledException') return
           console.error('[Paper] Error rendering PDF page:', error)
           ctx.fillStyle = '#fecaca'
-          ctx.fillRect(0, 0, width, height)
+          ctx.fillRect(0, 0, width * qualityScale, height * qualityScale)
         }
       }
     }

@@ -68,6 +68,12 @@ export default function EditablePage({
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.scale(dpr, dpr)
 
     ctx.clearRect(0, 0, width, height)
     drawAllStrokes(ctx, page.strokes, null)
@@ -95,7 +101,7 @@ export default function EditablePage({
       }
       ctx.restore()
     }
-  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes])
+  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height])
 
   // Laser animation loop
   useEffect(() => {
@@ -103,6 +109,12 @@ export default function EditablePage({
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.scale(dpr, dpr)
 
     let animationFrameId: number
 
