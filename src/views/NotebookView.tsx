@@ -547,46 +547,50 @@ export default function NotebookView() {
                     e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 >
-                  <button
-                    onClick={(e) => handleDeletePDF(e, pdfId)}
-                    style={{
-                      position: 'absolute',
-                      top: '8px',
-                      right: '8px',
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.4)',
-                      color: '#fff',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      zIndex: 5,
-                      transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.4)'}
-                    title="Delete PDF"
-                  >
-                    ×
-                  </button>
                   <div style={{ flex: 1, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: '48px' }}>📄</span>
                   </div>
-                  <div style={{ padding: '12px', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+                  <div style={{ padding: '12px', borderTop: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{
                       fontSize: '13px',
                       fontWeight: 600,
                       color: '#1e293b',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      flex: 1
                     }}>
                       {pdfMetadata[pdfId]?.name || 'Loading...'}
                     </div>
+                    <button
+                      onClick={(e) => handleDeletePDF(e, pdfId)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '6px',
+                        background: '#fee2e2',
+                        color: '#ef4444',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        flexShrink: 0,
+                        transition: 'background 0.2s, color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#ef4444'
+                        e.currentTarget.style.color = '#fff'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#fee2e2'
+                        e.currentTarget.style.color = '#ef4444'
+                      }}
+                      title="Delete PDF"
+                    >
+                      🗑️
+                    </button>
                   </div>
                 </div>
               ))}
