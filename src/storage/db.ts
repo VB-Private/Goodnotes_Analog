@@ -128,3 +128,13 @@ export async function getPDFAnnotationsForFile(pdfFileId: string): Promise<PDFAn
   const all = await db.getAll('pdfAnnotations')
   return all.filter(a => a.pdfFileId === pdfFileId)
 }
+
+export async function deletePDFAnnotationsForFile(pdfFileId: string): Promise<void> {
+  const db = await getDB()
+  const annotations = await getPDFAnnotationsForFile(pdfFileId)
+  const tx = db.transaction('pdfAnnotations', 'readwrite')
+  await Promise.all([
+    ...annotations.map(a => tx.store.delete(a.id)),
+    tx.done
+  ])
+}

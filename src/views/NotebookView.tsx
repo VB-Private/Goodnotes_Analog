@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile } from '../storage/db'
+import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile } from '../storage/db'
 import type { Notebook, Page, PageTemplate, ToolType, PDFFile, Operation } from '../types'
 import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
@@ -8,6 +8,7 @@ import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
 import Loader from '../components/Loader'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
+import { exportNotebookToPDF } from '../utils/export'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -66,6 +67,7 @@ export default function NotebookView() {
   const [undoStack, setUndoStack] = useState<Operation[]>([])
   const [redoStack, setRedoStack] = useState<Operation[]>([])
   const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
   const hasAttemptedInitialScroll = useRef(false)
 
   useEffect(() => {
@@ -343,6 +345,37 @@ export default function NotebookView() {
     setActiveMenuPageId(null)
   }
 
+  async function handleDeletePDF(e: React.MouseEvent, pdfId: string) {
+    e.stopPropagation()
+    if (!confirm('Are you sure you want to delete this PDF and all its annotations?')) return
+
+    setLoading(true)
+    try {
+      if (notebook) {
+        const updatedNb = {
+          ...notebook,
+          pdfIds: (notebook.pdfIds || []).filter(id => id !== pdfId)
+        }
+        await updateNotebook(updatedNb)
+        setNotebook(updatedNb)
+      }
+
+      await deletePDFFile(pdfId)
+      await deletePDFAnnotationsForFile(pdfId)
+
+      setPdfMetadata(prev => {
+        const next = { ...prev }
+        delete next[pdfId]
+        return next
+      })
+    } catch (error) {
+      console.error('Failed to delete PDF:', error)
+      alert('Failed to delete PDF.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleClearPage(pageId: string) {
     if (!confirm('Are you sure you want to clear all content on this page?')) return
 
@@ -358,6 +391,19 @@ export default function NotebookView() {
       })
     }
     setActiveMenuPageId(null)
+  }
+
+  async function handleExport() {
+    if (!notebook || pages.length === 0) return
+    setIsExporting(true)
+    try {
+      await exportNotebookToPDF(notebook, pages)
+    } catch (error) {
+      console.error('Export failed:', error)
+      alert('Failed to export PDF.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   if (loading || !notebook) return <Loader />
@@ -414,6 +460,25 @@ export default function NotebookView() {
           <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
             {notebook.title}
           </h1>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
+            style={{
+              padding: '12px 16px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: '20px',
+              border: 'none',
+              background: '#020617',
+              color: '#fff',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.7 : 1,
+              marginLeft: '4px'
+            }}
+          >
+            {isExporting ? 'Exporting...' : 'Export PDF'}
+          </button>
         </div>
       </div>
 
@@ -482,6 +547,32 @@ export default function NotebookView() {
                     e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 >
+                  <button
+                    onClick={(e) => handleDeletePDF(e, pdfId)}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.4)',
+                      color: '#fff',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      zIndex: 5,
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.4)'}
+                    title="Delete PDF"
+                  >
+                    ×
+                  </button>
                   <div style={{ flex: 1, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: '48px' }}>📄</span>
                   </div>

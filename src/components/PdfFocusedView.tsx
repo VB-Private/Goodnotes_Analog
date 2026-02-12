@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
 import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField } from '../types'
 import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
+import { exportAnnotatedPDF } from '../utils/export'
 import EditablePage from './EditablePage'
 
 interface PdfFocusedViewProps {
@@ -24,6 +25,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
     const [loading, setLoading] = useState(true)
     const [annotations, setAnnotations] = useState<Record<number, PDFAnnotation>>({})
     const [pageDimensions, setPageDimensions] = useState<Record<number, { width: number, height: number }>>({})
+    const [isExporting, setIsExporting] = useState(false)
 
     useEffect(() => {
         async function init() {
@@ -67,6 +69,19 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
         setAnnotations((prev: Record<number, PDFAnnotation>) => ({ ...prev, [pageNumber]: annotation }))
     }
 
+    const handleExport = async () => {
+        if (!pdfFile) return
+        setIsExporting(true)
+        try {
+            await exportAnnotatedPDF(pdfFile, annotations)
+        } catch (error) {
+            console.error('Standalone PDF export failed:', error)
+            alert('Failed to export PDF.')
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
     if (loading) return null
 
     return (
@@ -91,19 +106,40 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                 color: '#fff'
             }}>
                 <h2 style={{ fontSize: '16px', margin: 0 }}>{pdfFile?.name}</h2>
-                <button
-                    onClick={onClose}
-                    style={{
-                        padding: '8px 16px',
-                        background: '#ef4444',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Close
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        style={{
+                            padding: '8px 16px',
+                            background: '#020617',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: isExporting ? 'not-allowed' : 'pointer',
+                            opacity: isExporting ? 0.7 : 1,
+                            fontSize: '14px',
+                            fontWeight: 600
+                        }}
+                    >
+                        {isExporting ? 'Exporting...' : 'Export PDF'}
+                    </button>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            padding: '8px 16px',
+                            background: '#ef4444',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 600
+                        }}
+                    >
+                        Close
+                    </button>
+                </div>
             </div>
 
             <div style={{
@@ -128,7 +164,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                                 pdfFileId,
                                 pdfPageNumber: pageNumber
                             }}
-                            scale={1} // We can adjust this later
+                            scale={0.8} // We can adjust this later
                             width={pageDimensions[pageNumber]?.width}
                             height={pageDimensions[pageNumber]?.height}
                             activeTool={activeTool}
@@ -140,7 +176,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                     </div>
                 ))}
             </div>
-        </div>
+        </div >
     )
 }
 
