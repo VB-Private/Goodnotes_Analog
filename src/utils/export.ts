@@ -153,7 +153,7 @@ function drawAnnotationsOnPage(
             for (const point of smoothPoints) {
                 // Apple Pencil pressure mapping: linear, with a minimum of 30% of stroke size
                 // This ensures very light touches are still visible and smooth.
-                const pressureFactor = 0.3 + point.pressure * 0.7 // range 0.3–1.0
+                const pressureFactor = 0.3 + point.pressure * 0.3 // range 0.3–1.0
                 const radius = stroke.size * pressureFactor * scaleX
 
                 pdfPage.drawEllipse({
