@@ -201,6 +201,9 @@ export default function EditablePage({
   useEffect(() => {
     pointsRef.current = []
     isDrawingRef.current = false
+    if (activeTool !== 'lasso') {
+      setSelectedStrokeIds([])
+    }
   }, [activeTool])
 
   // High-performance event listeners
