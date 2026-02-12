@@ -12,11 +12,11 @@ const LINE_SPACING = 24
 const PAPER_BG = rgb(0.98, 0.98, 0.97) // #fafaf8
 
 // ----------------------------------------------------------------------
-//  Helper functions for smooth stroke interpolation
+//  Apple Pencil optimized stroke rendering
 // ----------------------------------------------------------------------
 
 /**
- * Converts a hex color string to pdf-lib RGB object
+ * Converts hex to RGB
  */
 function hexToRgb(hex: string) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -30,7 +30,63 @@ function hexToRgb(hex: string) {
 }
 
 /**
- * Catmull‑Rom spline interpolation for a single value
+ * Linear interpolation
+ */
+function lerp(a: number, b: number, t: number): number {
+    return a * (1 - t) + b * t
+}
+
+/**
+ * Adaptive Catmull-Rom spline interpolation.
+ * Inserts points so that the maximum distance between consecutive points
+ * is less than half the minimum stroke width. This guarantees smooth,
+ * gapless strokes when drawing overlapping circles.
+ */
+function interpolateStrokePointsForHandwriting(
+    points: { x: number; y: number; pressure: number }[],
+    strokeSize: number,
+    scale: { x: number; y: number }
+): typeof points {
+    if (points.length < 2) return points
+
+    const result: typeof points = []
+    const minThickness = strokeSize * 0.3 * Math.min(scale.x, scale.y) // minimum radius ~0.3 * size
+    const targetSpacing = minThickness * 0.8 // circles overlap when spacing < 2*radius
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i]
+        const p2 = points[i + 1]
+
+        // Euclidean distance in scaled coordinates
+        const dx = (p2.x - p1.x) * scale.x
+        const dy = (p2.y - p1.y) * scale.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+
+        // Number of segments needed so that segment length <= targetSpacing
+        const segments = Math.max(1, Math.ceil(distance / targetSpacing))
+
+        for (let s = 0; s < segments; s++) {
+            const t = s / segments
+
+            // Catmull-Rom requires 4 points; for boundaries we duplicate first/last
+            const p0 = i === 0 ? points[i] : points[i - 1]
+            const p3 = i === points.length - 2 ? points[i + 1] : points[i + 2]
+
+            const x = catmullRom(p0.x, p1.x, p2.x, p3.x, t)
+            const y = catmullRom(p0.y, p1.y, p2.y, p3.y, t)
+            const pressure = lerp(p1.pressure, p2.pressure, t)
+
+            result.push({ x, y, pressure })
+        }
+    }
+
+    // Add the very last point
+    result.push(points[points.length - 1])
+    return result
+}
+
+/**
+ * Catmull-Rom for one coordinate
  */
 function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
     const v0 = (p2 - p0) * 0.5
@@ -43,53 +99,20 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
         p1
 }
 
-/**
- * Linear interpolation between two numbers
- */
-function lerp(a: number, b: number, t: number): number {
-    return a * (1 - t) + b * t
-}
-
-/**
- * Inserts extra points along a stroke using Catmull‑Rom spline.
- * This smooths the path and increases point density for better circle coverage.
- */
-function interpolateStrokePoints(
-    points: { x: number; y: number; pressure: number }[],
-    segmentsPerSegment = 4
-): typeof points {
-    if (points.length < 3) return points
-    const result: typeof points = []
-
-    for (let i = 0; i < points.length - 1; i++) {
-        const p0 = points[Math.max(i - 1, 0)]
-        const p1 = points[i]
-        const p2 = points[i + 1]
-        const p3 = points[Math.min(i + 2, points.length - 1)]
-
-        for (let s = 0; s < segmentsPerSegment; s++) {
-            const t = s / segmentsPerSegment
-            const x = catmullRom(p0.x, p1.x, p2.x, p3.x, t)
-            const y = catmullRom(p0.y, p1.y, p2.y, p3.y, t)
-            const pressure = lerp(p1.pressure, p2.pressure, t)
-            result.push({ x, y, pressure })
-        }
-    }
-
-    // Add the last point explicitly
-    result.push(points[points.length - 1])
-    return result
-}
-
 // ----------------------------------------------------------------------
-//  Core drawing function – improved for smooth, high‑quality strokes
+//  Core drawing – handwriting optimized
 // ----------------------------------------------------------------------
 
 /**
- * Draws strokes and text fields on a pdf-lib PDFPage with high quality.
- * - Interpolates points to eliminate jagged edges
- * - Draws overlapping filled circles to create smooth joins and ends
- * - Interpolates thickness/pressure along each segment
+ * Draws strokes using overlapping filled circles.
+ * This method produces smooth, continuous handwriting strokes
+ * with natural pressure variation and perfect joins.
+ * 
+ * Key optimizations for Apple Pencil:
+ * - Linear pressure mapping with a minimum thickness (never too thin)
+ * - Adaptive point density to guarantee circle overlap
+ * - No double-drawing (circles only, no lines)
+ * - Circles are drawn at every interpolated point
  */
 function drawAnnotationsOnPage(
     pdfPage: any,
@@ -100,7 +123,7 @@ function drawAnnotationsOnPage(
     const { x: scaleX, y: scaleY } = scale
 
     // --------------------------------------------------------------------
-    //  Draw Strokes
+    //  Draw Strokes – handwriting optimized
     // --------------------------------------------------------------------
     for (let i = 0; i < pageContent.strokes.length; i++) {
         const stroke = pageContent.strokes[i]
@@ -119,13 +142,20 @@ function drawAnnotationsOnPage(
         for (const fragment of fragments) {
             if (fragment.points.length < 2) continue
 
-            // 1. Increase point density and smooth the path
-            const smoothPoints = interpolateStrokePoints(fragment.points, 4) // 4x density
+            // Step 1: Interpolate points adaptively so circles overlap seamlessly
+            const smoothPoints = interpolateStrokePointsForHandwriting(
+                fragment.points,
+                stroke.size,
+                { x: scaleX, y: scaleY }
+            )
 
-            // 2. Draw a filled circle at every point (gives smooth joins and ends)
+            // Step 2: Draw a filled circle at every point
             for (const point of smoothPoints) {
-                // Radius = half of the previous line thickness (thickness = log(p+1)*size*2*scaleX)
-                const radius = Math.log(point.pressure + 1) * stroke.size * scaleX
+                // Apple Pencil pressure mapping: linear, with a minimum of 30% of stroke size
+                // This ensures very light touches are still visible and smooth.
+                const pressureFactor = 0.3 + point.pressure * 0.7 // range 0.3–1.0
+                const radius = stroke.size * pressureFactor * scaleX
+
                 pdfPage.drawEllipse({
                     x: point.x * scaleX,
                     y: height - point.y * scaleY,
@@ -134,24 +164,6 @@ function drawAnnotationsOnPage(
                     color: rgb(color.r, color.g, color.b),
                     opacity: opacity,
                     borderWidth: 0, // filled ellipse
-                })
-            }
-
-            // 3. (Optional) Draw connecting lines with averaged thickness
-            //    This reinforces the shape and helps with very low‑density input.
-            for (let j = 1; j < smoothPoints.length; j++) {
-                const p1 = smoothPoints[j - 1]
-                const p2 = smoothPoints[j]
-                const avgPressure = (p1.pressure + p2.pressure) / 2
-                const thickness = Math.log(avgPressure + 1) * (stroke.size * 2) * scaleX
-
-                pdfPage.drawLine({
-                    start: { x: p1.x * scaleX, y: height - p1.y * scaleY },
-                    end: { x: p2.x * scaleX, y: height - p2.y * scaleY },
-                    thickness: thickness,
-                    color: rgb(color.r, color.g, color.b),
-                    opacity: opacity,
-                    lineCap: 1, // round cap
                 })
             }
         }
@@ -266,7 +278,6 @@ export async function exportAnnotatedPDF(
         const ann = annotationsMap[pageNumber]
 
         if (ann) {
-            // Standalone PDFs use their own coordinate system (1:1 scale)
             drawAnnotationsOnPage(pdfPage, ann, { x: 1, y: 1 })
         }
     }

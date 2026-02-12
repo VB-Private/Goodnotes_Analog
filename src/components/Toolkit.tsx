@@ -27,6 +27,8 @@ const COLORS = [
 ]
 
 const PEN_SIZES = [
+    { label: 'Extra Small', value: 2 },
+    { label: 'Smaller', value: 3 },
     { label: 'Small', value: 5 },
     { label: 'Medium', value: 10 },
     { label: 'Big', value: 15 },
