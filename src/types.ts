@@ -57,3 +57,8 @@ export interface PDFAnnotation {
   strokes: Stroke[]
   textFields: TextField[]
 }
+
+export type Operation =
+  | { type: 'add'; pageId: string; stroke: Stroke }
+  | { type: 'delete'; pageId: string; stroke: Stroke }
+  | { type: 'bulk-update'; pageId: string; oldStrokes: Stroke[]; newStrokes: Stroke[]; oldTextFields?: TextField[]; newTextFields?: TextField[] }

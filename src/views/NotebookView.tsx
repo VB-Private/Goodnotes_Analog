@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile } from '../storage/db'
-import type { Notebook, Page, PageTemplate, ToolType, PDFFile } from '../types'
+import type { Notebook, Page, PageTemplate, ToolType, PDFFile, Operation } from '../types'
 import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
@@ -62,8 +62,9 @@ export default function NotebookView() {
       setPenSize(size)
     }
   }
-  const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null)
-  const [modifiedStack, setModifiedStack] = useState<string[]>([])
+  // const [inputType, setInputType] = useState<'pen' | 'touch' | null>(null) // Removed to fix lint
+  const [undoStack, setUndoStack] = useState<Operation[]>([])
+  const [redoStack, setRedoStack] = useState<Operation[]>([])
   const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
   const hasAttemptedInitialScroll = useRef(false)
 
@@ -111,6 +112,22 @@ export default function NotebookView() {
   }, [])
 
   useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          handleRedo()
+        } else {
+          handleUndo()
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        handleRedo()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undoStack, redoStack]) // Depend on stacks to have latest versions in the closure if not using refs or functional updates (but handleUndo/Redo use state)
+
+  useEffect(() => {
     if (loading || pages.length === 0 || !notebook || hasAttemptedInitialScroll.current) return
 
     const targetPageId = notebook.lastPageId || pages[pages.length - 1].id
@@ -133,11 +150,6 @@ export default function NotebookView() {
   }, [loading, notebook, pages, scale])
 
   function handlePageUpdate(updated: Page) {
-    const original = pages.find(p => p.id === updated.id)
-    if (original && original.strokes.length < updated.strokes.length) {
-      setModifiedStack(prev => [...prev, updated.id])
-    }
-
     // Save last edited page
     if (notebook) {
       const updatedNb = { ...notebook, lastPageId: updated.id }
@@ -149,23 +161,96 @@ export default function NotebookView() {
     setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
   }
 
-  function handleUndo() {
-    if (modifiedStack.length === 0) return
-
-    const newStack = [...modifiedStack]
-    const lastPageId = newStack.pop()
-    setModifiedStack(newStack)
-
-    const pageToUndo = pages.find(p => p.id === lastPageId)
-    if (pageToUndo && pageToUndo.strokes.length > 0) {
-      const updatedPage = {
-        ...pageToUndo,
-        strokes: pageToUndo.strokes.slice(0, -1)
+  function handleOperation(op: Operation) {
+    if (op.type === 'add') {
+      const pageToUpdate = pages.find(p => p.id === op.pageId)
+      if (pageToUpdate) {
+        const updatedPage = {
+          ...pageToUpdate,
+          strokes: [...pageToUpdate.strokes, op.stroke]
+        }
+        handlePageUpdate(updatedPage)
+        setUndoStack(prev => [...prev, op])
+        setRedoStack([])
       }
-      handlePageUpdate(updatedPage)
-      // Since handlePageUpdate will add it back to stack if strokes length increased, 
-      // but here it decreased, so it's fine. 
-      // Wait, handlePageUpdate checks if length increased. Correct.
+    } else if (op.type === 'bulk-update') {
+      const pageToUpdate = pages.find(p => p.id === op.pageId)
+      if (pageToUpdate) {
+        const updatedPage = {
+          ...pageToUpdate,
+          strokes: op.newStrokes,
+          textFields: op.newTextFields || pageToUpdate.textFields
+        }
+        handlePageUpdate(updatedPage)
+        setUndoStack(prev => [...prev, op])
+        setRedoStack([])
+      }
+    }
+  }
+
+  function handleUndo() {
+    if (undoStack.length === 0) return
+
+    const newUndoStack = [...undoStack]
+    const op = newUndoStack.pop()!
+    setUndoStack(newUndoStack)
+
+    if (op.type === 'add') {
+      const pageToUndo = pages.find(p => p.id === op.pageId)
+      if (pageToUndo) {
+        const updatedPage = {
+          ...pageToUndo,
+          strokes: pageToUndo.strokes.filter(s => s.id !== op.stroke.id)
+        }
+        updatePage(updatedPage)
+        setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
+        setRedoStack(prev => [...prev, op])
+      }
+    } else if (op.type === 'bulk-update') {
+      const pageToUndo = pages.find(p => p.id === op.pageId)
+      if (pageToUndo) {
+        const updatedPage = {
+          ...pageToUndo,
+          strokes: op.oldStrokes,
+          textFields: op.oldTextFields || pageToUndo.textFields
+        }
+        updatePage(updatedPage)
+        setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
+        setRedoStack(prev => [...prev, op])
+      }
+    }
+  }
+
+  function handleRedo() {
+    if (redoStack.length === 0) return
+
+    const newRedoStack = [...redoStack]
+    const op = newRedoStack.pop()!
+    setRedoStack(newRedoStack)
+
+    if (op.type === 'add') {
+      const pageToRedo = pages.find(p => p.id === op.pageId)
+      if (pageToRedo) {
+        const updatedPage = {
+          ...pageToRedo,
+          strokes: [...pageToRedo.strokes, op.stroke]
+        }
+        updatePage(updatedPage)
+        setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
+        setUndoStack(prev => [...prev, op])
+      }
+    } else if (op.type === 'bulk-update') {
+      const pageToRedo = pages.find(p => p.id === op.pageId)
+      if (pageToRedo) {
+        const updatedPage = {
+          ...pageToRedo,
+          strokes: op.newStrokes,
+          textFields: op.newTextFields || pageToRedo.textFields
+        }
+        updatePage(updatedPage)
+        setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
+        setUndoStack(prev => [...prev, op])
+      }
     }
   }
 
@@ -263,12 +348,14 @@ export default function NotebookView() {
 
     const pageToClear = pages.find(p => p.id === pageId)
     if (pageToClear) {
-      const updatedPage = {
-        ...pageToClear,
-        strokes: [],
-        textFields: []
-      }
-      handlePageUpdate(updatedPage)
+      handleOperation({
+        type: 'bulk-update',
+        pageId,
+        oldStrokes: pageToClear.strokes,
+        newStrokes: [],
+        oldTextFields: pageToClear.textFields,
+        newTextFields: []
+      })
     }
     setActiveMenuPageId(null)
   }
@@ -338,7 +425,9 @@ export default function NotebookView() {
         onColorChange={setActiveColor}
         onSizeChange={onSizeChange}
         onUndo={handleUndo}
-        canUndo={modifiedStack.length > 0}
+        onRedo={handleRedo}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
       />
 
       {/* Main Scroll Container */}
@@ -562,7 +651,8 @@ export default function NotebookView() {
                     activeColor={activeColor}
                     activeSize={activeSize}
                     onUpdate={handlePageUpdate}
-                    onInputTypeChange={setInputType}
+                    onOperation={handleOperation}
+                    onInputTypeChange={() => { }} // Dummy as it was removed
                   />
                 </div>
               ))

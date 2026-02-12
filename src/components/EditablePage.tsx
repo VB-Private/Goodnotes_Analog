@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField } from '../types'
+import type { Page, Stroke, StrokePoint, ToolType, TextField, Operation } from '../types'
 import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
 import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke } from '../utils/geometry'
 import { generateCirclePoints } from '../utils/shapeDetection'
@@ -14,6 +14,7 @@ interface EditablePageProps {
   activeColor: string
   activeSize: number
   onUpdate: (page: Page) => void
+  onOperation?: (op: Operation) => void
   onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
   width?: number
   height?: number
@@ -26,6 +27,7 @@ export default function EditablePage({
   activeColor,
   activeSize,
   onUpdate,
+  onOperation,
   onInputTypeChange,
   width: customWidth,
   height: customHeight
@@ -527,7 +529,11 @@ export default function EditablePage({
             }
             return s
           })
-          onUpdate({ ...page, strokes: updatedStrokes })
+          if (onOperation) {
+            onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: updatedStrokes })
+          } else {
+            onUpdate({ ...page, strokes: updatedStrokes })
+          }
         }
         dragOffsetRef.current = { x: 0, y: 0 }
         dragStartPosRef.current = null
@@ -585,7 +591,11 @@ export default function EditablePage({
           }
 
           if (hasChanges) {
-            onUpdate({ ...page, strokes: newStrokes })
+            if (onOperation) {
+              onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes })
+            } else {
+              onUpdate({ ...page, strokes: newStrokes })
+            }
             setSelectedStrokeIds(newSelectedIds)
           } else {
             setSelectedStrokeIds(newSelectedIds)
@@ -607,7 +617,11 @@ export default function EditablePage({
             tool: activeTool === 'figures' ? 'pen' : activeTool,
             size: activeSize
           }
-          onUpdate({ ...page, strokes: [...page.strokes, stroke] })
+          if (onOperation) {
+            onOperation({ type: 'add', pageId: page.id, stroke })
+          } else {
+            onUpdate({ ...page, strokes: [...page.strokes, stroke] })
+          }
         }
       }
       pointsRef.current = []

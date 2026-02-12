@@ -10,7 +10,9 @@ interface ToolkitProps {
     onColorChange: (color: string) => void
     onSizeChange: (size: number) => void
     onUndo?: () => void
+    onRedo?: () => void
     canUndo?: boolean
+    canRedo?: boolean
 }
 
 const COLORS = [
@@ -44,7 +46,9 @@ export default function Toolkit({
     onColorChange,
     onSizeChange,
     onUndo,
-    canUndo
+    onRedo,
+    canUndo,
+    canRedo
 }: ToolkitProps) {
     const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
@@ -196,6 +200,15 @@ export default function Toolkit({
                     disabled={!canUndo}
                 >
                     <UndoIcon />
+                </ToolButton>
+
+                <ToolButton
+                    active={false}
+                    onClick={onRedo || (() => { })}
+                    label="Redo"
+                    disabled={!canRedo}
+                >
+                    <RedoIcon />
                 </ToolButton>
             </div>
 
@@ -533,6 +546,15 @@ function UndoIcon() {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
+        </svg>
+    )
+}
+
+function RedoIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
         </svg>
     )
 }
