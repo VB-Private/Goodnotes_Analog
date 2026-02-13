@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import Loader from './Loader'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
 import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Operation } from '../types'
 import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
@@ -200,7 +201,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
         }
     }
 
-    if (loading) return null
+    if (loading) return <Loader />
 
     return (
         <div style={{
@@ -209,13 +210,14 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
             left: 0,
             width: '100vw',
             height: '100dvh',
-            background: '#000',
+            background: '#ffffff05',
             zIndex: 100,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
         }}>
-            <div style={{
+            {/* Legacy top bar */}
+            {/*  <div style={{
                 padding: '16px',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -259,13 +261,14 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                     </button>
                 </div>
             </div>
-
+ */}
             <div style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: '20px',
+                padding: '80px 0',
                 display: 'flex',
                 flexDirection: 'column',
+                /* row is also a good option for big pdfs */
                 alignItems: 'center',
                 gap: '20px'
             }}>
@@ -282,7 +285,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                                 pdfFileId,
                                 pdfPageNumber: pageNumber
                             }}
-                            scale={0.8} // We can adjust this later
+                            scale={0.79} // We can adjust this later
                             width={pageDimensions[pageNumber]?.width}
                             height={pageDimensions[pageNumber]?.height}
                             activeTool={activeTool}

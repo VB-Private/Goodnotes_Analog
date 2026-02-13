@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile } from '../storage/db'
-import type { Notebook, Page, PageTemplate, ToolType, PDFFile, Operation, Tab } from '../types'
+import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile, getPDFAnnotation } from '../storage/db'
+import type { Notebook, Page, PageTemplate, ToolType, PDFFile, Operation, Tab, PDFAnnotation } from '../types'
 import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
 import Loader from '../components/Loader'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import { exportNotebookToPDF } from '../utils/export'
+import { exportNotebookToPDF, exportAnnotatedPDF } from '../utils/export'
+import { getPDFPageCount } from '../utils/pdf'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -66,6 +67,7 @@ export default function NotebookView() {
   const [undoStack, setUndoStack] = useState<Operation[]>([])
   const [redoStack, setRedoStack] = useState<Operation[]>([])
   const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
+  const [activeTabMenuId, setActiveTabMenuId] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [pdfActions, setPdfActions] = useState<{ undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean } | null>(null)
   const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'notes', type: 'notes', title: 'Notes' }])
@@ -75,6 +77,7 @@ export default function NotebookView() {
   useEffect(() => {
     function handleClickOutside() {
       setActiveMenuPageId(null)
+      setActiveTabMenuId(null)
     }
     window.addEventListener('click', handleClickOutside)
     return () => window.removeEventListener('click', handleClickOutside)
@@ -154,6 +157,7 @@ export default function NotebookView() {
   }, [undoStack, redoStack, activeTabId, pdfActions])
 
   useEffect(() => {
+    if (activeTabId !== 'notes') return
     if (loading || pages.length === 0 || !notebook || hasAttemptedInitialScroll.current) return
 
     const targetPageId = notebook.lastPageId || pages[pages.length - 1].id
@@ -173,7 +177,12 @@ export default function NotebookView() {
     }, 300)
 
     return () => clearTimeout(scrollTimeout)
-  }, [loading, notebook, pages, scale])
+  }, [loading, notebook, pages, scale, activeTabId])
+
+  // Reset scroll attempt when switching tabs so we scroll to last page again when returning to notes
+  useEffect(() => {
+    hasAttemptedInitialScroll.current = false
+  }, [activeTabId])
 
   function handlePageUpdate(updated: Page) {
     // Save last edited page
@@ -438,6 +447,31 @@ export default function NotebookView() {
     }
   }
 
+  async function handleExportPDF(e: React.MouseEvent, pdfId: string) {
+    e.stopPropagation()
+    setActiveTabMenuId(null)
+    const file = await getPDFFile(pdfId)
+    if (!file) return
+
+    setIsExporting(true)
+    try {
+      const count = await getPDFPageCount(file.blob)
+      const annotations: Record<number, PDFAnnotation> = {}
+
+      for (let i = 1; i <= count; i++) {
+        const ann = await getPDFAnnotation(`${pdfId}_${i}`)
+        if (ann) annotations[i] = ann
+      }
+
+      await exportAnnotatedPDF(file, annotations)
+    } catch (error) {
+      console.error('Failed to export PDF:', error)
+      alert('Failed to export PDF.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   if (loading || !notebook) return <Loader />
 
   return (
@@ -451,68 +485,70 @@ export default function NotebookView() {
       position: 'relative'
     }}>
       {/* Header Container */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 6,
-          left: 6,
-          zIndex: 20,
-          pointerEvents: 'none',
-        }}
-      >
+      {activeTabId === 'notes' && (
         <div
           style={{
-            pointerEvents: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '24px',
-            padding: '4px 16px 4px 4px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            zIndex: 20,
+            pointerEvents: 'none',
           }}
         >
-          <button
-            type="button"
-            onClick={() => navigate('/')}
+          <div
             style={{
-              padding: '12px 16px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '20px',
-              border: 'none',
-              background: '#f1f5f9',
-              color: '#475569',
-              cursor: 'pointer',
+              pointerEvents: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              background: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '24px',
+              padding: '4px 16px 4px 4px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
             }}
           >
-            Back
-          </button>
-          <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
-            {notebook.title}
-          </h1>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={isExporting}
-            style={{
-              padding: '12px 16px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '20px',
-              border: 'none',
-              background: '#020617',
-              color: '#fff',
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.7 : 1,
-              marginLeft: '4px'
-            }}
-          >
-            {isExporting ? 'Exporting...' : 'Export PDF'}
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              style={{
+                padding: '12px 16px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: '20px',
+                border: 'none',
+                background: '#f1f5f9',
+                color: '#475569',
+                cursor: 'pointer',
+              }}
+            >
+              Back
+            </button>
+            <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+              {notebook.title}
+            </h1>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting}
+              style={{
+                padding: '12px 16px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: '20px',
+                border: 'none',
+                background: '#020617',
+                color: '#fff',
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                opacity: isExporting ? 0.7 : 1,
+                marginLeft: '4px'
+              }}
+            >
+              {isExporting ? 'Exporting...' : 'Export PDF'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <Toolkit
         activeTool={activeTool}
@@ -794,6 +830,7 @@ export default function NotebookView() {
           </div>
         ) : (
           <PdfFocusedView
+            key={activeTabId}
             pdfFileId={activeTabId}
             onClose={() => setActiveTabId('notes')}
             activeTool={activeTool}
@@ -822,7 +859,7 @@ export default function NotebookView() {
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
           zIndex: 100,
           maxWidth: '90vw',
-          overflowX: 'auto',
+          // overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
         }}
       >
@@ -886,34 +923,113 @@ export default function NotebookView() {
               {tab.title}
             </button>
             {tab.type === 'pdf' && (
-              <button
-                onClick={(e) => handleDeletePDF(e, tab.id)}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: activeTabId === tab.id ? '#f1f5f9' : 'transparent',
-                  color: '#94a3b8',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '10px',
-                  transition: 'all 0.2s',
-                  marginRight: '4px'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#fee2e2'
-                  e.currentTarget.style.color = '#ef4444'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = activeTabId === tab.id ? '#f1f5f9' : 'transparent'
-                  e.currentTarget.style.color = '#94a3b8'
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveTabMenuId(activeTabMenuId === tab.id ? null : tab.id)
+                  }}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: activeTabMenuId === tab.id ? '#cbd5e1' : (activeTabId === tab.id ? '#f1f5f9' : 'transparent'),
+                    color: '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    lineHeight: 1,
+                    transition: 'all 0.2s',
+                    marginRight: '4px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#e2e8f0'
+                    e.currentTarget.style.color = '#0f172a'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = activeTabMenuId === tab.id ? '#cbd5e1' : (activeTabId === tab.id ? '#f1f5f9' : 'transparent')
+                    e.currentTarget.style.color = '#64748b'
+                  }}
+                >
+                  ⋮
+                </button>
+                {activeTabMenuId === tab.id && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      marginBottom: '8px',
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                      padding: '4px',
+                      minWidth: '100px',
+                      zIndex: 150,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px'
+                    }}
+                  >
+                    <button
+                      onClick={(e) => handleExportPDF(e, tab.id)}
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#1e293b',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'background 0.2s',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span style={{ fontSize: '14px' }}>📤</span> Export
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        setActiveTabMenuId(null)
+                        handleDeletePDF(e, tab.id)
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'background 0.2s',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#fee2e2'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      <span style={{ fontSize: '14px' }}>🗑️</span> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ))}
