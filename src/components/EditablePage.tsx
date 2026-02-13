@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField, Operation } from '../types'
 import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
-import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke } from '../utils/geometry'
+import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
 import { generateCirclePoints } from '../utils/shapeDetection'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
@@ -49,6 +49,7 @@ export default function EditablePage({
   const dragOffsetRef = useRef({ x: 0, y: 0 })
   const holdTimeoutRef = useRef<number | null>(null)
   const isStraightLineModeRef = useRef(false)
+  const [erasedStrokeIds, setErasedStrokeIds] = useState<string[]>([])
 
   const selectedStrokes = useMemo(() =>
     page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
@@ -88,7 +89,6 @@ export default function EditablePage({
       ctx.setLineDash([5, 5])
 
       selectedStrokes.forEach(s => {
-        // Simple bounding box for each stroke or glow
         const box = getBoundingBox(s.points)
         ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
       })
@@ -98,12 +98,26 @@ export default function EditablePage({
         ctx.setLineDash([])
         ctx.lineWidth = 1
         ctx.strokeRect(selectionBox.minX - 8, selectionBox.minY - 8, (selectionBox.maxX - selectionBox.minX) + 16, (selectionBox.maxY - selectionBox.minY) + 16)
-
-        // Draw drag handle indicator (optional, for now just the box)
       }
       ctx.restore()
     }
-  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height])
+
+    // Highlight strokes marked for deletion by eraser
+    if (erasedStrokeIds.length > 0) {
+      ctx.save()
+      ctx.strokeStyle = '#FF3B30'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 5])
+      erasedStrokeIds.forEach(id => {
+        const s = page.strokes.find(st => st.id === id)
+        if (s) {
+          const box = getBoundingBox(s.points)
+          ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
+        }
+      })
+      ctx.restore()
+    }
+  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds])
 
   // Laser animation loop
   useEffect(() => {
@@ -248,7 +262,8 @@ export default function EditablePage({
 
       ctx.globalAlpha = 1.0
       if (activeTool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out'
+        // Eraser no longer draws on the canvas
+        return
       } else if (activeTool === 'laser') {
         ctx.globalCompositeOperation = 'source-over'
         ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
@@ -267,7 +282,6 @@ export default function EditablePage({
       const prevPoint = points[l - 1]
 
       // Calculate smoothed lineWidth based on pressure
-      // Using user's formula: lineWidth = Math.log(pressure + 1) * 40
       const targetLineWidth = Math.log(point.pressure + 1) * (activeSize * 2)
       const currentLineWidth = (targetLineWidth * 0.2 + lastLineWidthRef.current * 0.8)
       lastLineWidthRef.current = currentLineWidth
@@ -348,6 +362,7 @@ export default function EditablePage({
       }
 
       if (cursorRef.current && activeTool === 'eraser') {
+        setErasedStrokeIds([])
         const diameter = Math.log(pos.pressure + 1) * (activeSize * 2)
         cursorRef.current.style.display = 'block'
         cursorRef.current.style.width = `${diameter}px`
@@ -374,25 +389,11 @@ export default function EditablePage({
             const endPoint = pointsRef.current[pointsRef.current.length - 1]
             pointsRef.current = [startPoint, endPoint]
 
-            // Redraw EVERYTHING to clear the squiggly line and show the straight line
-            // We can't clear just the current stroke easily since it's on the main canvas now?
-            // Wait, drawAllStrokes handles currentPoints.
-            // We need a force re-render, but we are inside an event handler.
-            // We can manually clear and call drawAllStrokes
             const canvas = strokeCanvasRef.current
             const ctx = canvas?.getContext('2d')
             if (ctx && canvas) {
               ctx.clearRect(0, 0, width, height)
               drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
-
-              // Re-draw selection if any
-              if (selectedStrokeIds.length > 0) {
-                // That logic is inside useEffect, we might lose it temporarily until next render?
-                // Or we can extract the selection drawing logic.
-                // For now, let's keep it simple. The useEffect will re-run on next render, 
-                // but here we are in a timeout. We might need to trigger a state update?
-                // No, let's just redraw the strokes.
-              }
             }
           }
         }, 1000) // 1 second hold
@@ -474,8 +475,19 @@ export default function EditablePage({
         }
       } else {
         pointsRef.current.push(pos)
-        if (activeTool !== 'laser' && activeTool !== 'lasso') {
+        if (activeTool !== 'laser' && activeTool !== 'lasso' && activeTool !== 'eraser') {
           drawSegment(pointsRef.current)
+        }
+
+        if (activeTool === 'eraser') {
+          const radius = (Math.log(pos.pressure + 1) * (activeSize * 2)) / 2
+          const newlyErased = page.strokes
+            .filter(s => !erasedStrokeIds.includes(s.id) && isStrokeHitByCircle(s, pos, radius))
+            .map(s => s.id)
+
+          if (newlyErased.length > 0) {
+            setErasedStrokeIds(prev => [...prev, ...newlyErased])
+          }
         }
 
         // Reset hold detection on move if not yet snapped
@@ -499,10 +511,7 @@ export default function EditablePage({
                   drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
                 }
               }
-            }, 500) // Lower time while moving? No, let's keep it consistent or use a "pause" detection
-            // Actually, user requested "hold at the end for one second". 
-            // That means move -> stop -> wait 1s -> snap.
-            // So we should restart the timer on every move.
+            }, 500)
             holdTimeoutRef.current = timeoutId
           }
         }
@@ -564,31 +573,24 @@ export default function EditablePage({
           for (let i = 0; i < page.strokes.length; i++) {
             const s = page.strokes[i]
 
-            // Check if this stroke is a candidate for selection (touched by lasso)
-            // AND not an eraser itself
             if (s.tool !== 'eraser' && isStrokeInPolygon(s, lassoPolygon)) {
-              // Find relevant erasers (only those drawn AFTER this stroke)
               const relevantErasers = page.strokes.slice(i + 1).filter(e => e.tool === 'eraser')
 
               if (relevantErasers.length > 0) {
                 const fragments = splitStroke(s, relevantErasers)
                 if (fragments.length === 1 && fragments[0] === s) {
-                  // No split occurred
                   newStrokes.push(s)
                   newSelectedIds.push(s.id)
                 } else {
-                  // Split happened
                   hasChanges = true
                   newStrokes.push(...fragments)
                   fragments.forEach(f => newSelectedIds.push(f.id))
                 }
               } else {
-                // No erasers above it, just select
                 newStrokes.push(s)
                 newSelectedIds.push(s.id)
               }
             } else {
-              // Not selected or is eraser, just keep
               newStrokes.push(s)
             }
           }
@@ -603,7 +605,7 @@ export default function EditablePage({
           } else {
             setSelectedStrokeIds(newSelectedIds)
           }
-        } else {
+        } else if (activeTool !== 'eraser') {
           let finalPoints = [...pointsRef.current]
 
           if (activeTool === 'figures') {
@@ -626,6 +628,23 @@ export default function EditablePage({
             onUpdate({ ...page, strokes: [...page.strokes, stroke] })
           }
         }
+      }
+
+      if (activeTool === 'eraser') {
+        if (erasedStrokeIds.length > 0) {
+          const newStrokes = page.strokes.filter(s => !erasedStrokeIds.includes(s.id))
+          if (onOperation) {
+            onOperation({
+              type: 'bulk-update',
+              pageId: page.id,
+              oldStrokes: page.strokes,
+              newStrokes
+            })
+          } else {
+            onUpdate({ ...page, strokes: newStrokes })
+          }
+        }
+        setErasedStrokeIds([])
       }
       pointsRef.current = []
     }
@@ -657,7 +676,7 @@ export default function EditablePage({
       canvas.removeEventListener('mousemove', handlePointerMove)
       canvas.removeEventListener('mouseleave', handlePointerLeave)
     }
-  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes])
+  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes, erasedStrokeIds, onOperation, width, height])
 
   function handleTextFieldUpdate(id: string, text: string) {
     onUpdate({

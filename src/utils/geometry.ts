@@ -151,3 +151,24 @@ export function splitStroke(original: Stroke, erasers: Stroke[]): Stroke[] {
             points
         }))
 }
+/**
+ * Checks if a stroke is hit by a circle (e.g., eraser).
+ * Checks distance from circle center to each segment of the stroke.
+ */
+export function isStrokeHitByCircle(stroke: Stroke, center: { x: number, y: number }, radius: number): boolean {
+    const radiusSq = radius ** 2
+    for (let i = 0; i < stroke.points.length - 1; i++) {
+        const v = stroke.points[i]
+        const w = stroke.points[i + 1]
+        if (distToSegmentSq(center, v, w) <= radiusSq) {
+            return true
+        }
+    }
+    // Also check single points if any (though strokes usually have >= 2 points)
+    if (stroke.points.length === 1) {
+        const p = stroke.points[0]
+        const d2 = (p.x - center.x) ** 2 + (p.y - center.y) ** 2
+        if (d2 <= radiusSq) return true
+    }
+    return false
+}
