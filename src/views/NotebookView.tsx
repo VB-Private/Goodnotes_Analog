@@ -68,6 +68,7 @@ export default function NotebookView() {
   const [redoStack, setRedoStack] = useState<Operation[]>([])
   const [activeMenuPageId, setActiveMenuPageId] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [pdfActions, setPdfActions] = useState<{ undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean } | null>(null)
   const hasAttemptedInitialScroll = useRef(false)
 
   useEffect(() => {
@@ -117,17 +118,29 @@ export default function NotebookView() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         if (e.shiftKey) {
-          handleRedo()
+          if (focusedPDFId && pdfActions) {
+            pdfActions.redo()
+          } else {
+            handleRedo()
+          }
         } else {
-          handleUndo()
+          if (focusedPDFId && pdfActions) {
+            pdfActions.undo()
+          } else {
+            handleUndo()
+          }
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        handleRedo()
+        if (focusedPDFId && pdfActions) {
+          pdfActions.redo()
+        } else {
+          handleRedo()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undoStack, redoStack]) // Depend on stacks to have latest versions in the closure if not using refs or functional updates (but handleUndo/Redo use state)
+  }, [undoStack, redoStack, focusedPDFId, pdfActions])
 
   useEffect(() => {
     if (loading || pages.length === 0 || !notebook || hasAttemptedInitialScroll.current) return
@@ -489,10 +502,10 @@ export default function NotebookView() {
         onToolChange={setActiveTool}
         onColorChange={setActiveColor}
         onSizeChange={onSizeChange}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={undoStack.length > 0}
-        canRedo={redoStack.length > 0}
+        onUndo={focusedPDFId && pdfActions ? pdfActions.undo : handleUndo}
+        onRedo={focusedPDFId && pdfActions ? pdfActions.redo : handleRedo}
+        canUndo={focusedPDFId && pdfActions ? pdfActions.canUndo : undoStack.length > 0}
+        canRedo={focusedPDFId && pdfActions ? pdfActions.canRedo : redoStack.length > 0}
       />
 
       {/* Main Scroll Container */}
@@ -797,6 +810,7 @@ export default function NotebookView() {
           activeTool={activeTool}
           activeColor={activeColor}
           activeSize={activeSize}
+          onActionsUpdate={setPdfActions}
         />
       )}
     </div>

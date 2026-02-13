@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
-import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField } from '../types'
+import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Operation } from '../types'
 import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
 import { exportAnnotatedPDF } from '../utils/export'
 import EditablePage from './EditablePage'
@@ -11,6 +11,7 @@ interface PdfFocusedViewProps {
     activeTool: ToolType
     activeColor: string
     activeSize: number
+    onActionsUpdate?: (actions: { undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean }) => void
 }
 
 const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
@@ -18,7 +19,8 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
     onClose,
     activeTool,
     activeColor,
-    activeSize
+    activeSize,
+    onActionsUpdate
 }) => {
     const [pdfFile, setPdfFile] = useState<PDFFile | null>(null)
     const [pageCount, setPageCount] = useState(0)
@@ -26,6 +28,8 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
     const [annotations, setAnnotations] = useState<Record<number, PDFAnnotation>>({})
     const [pageDimensions, setPageDimensions] = useState<Record<number, { width: number, height: number }>>({})
     const [isExporting, setIsExporting] = useState(false)
+    const [undoStack, setUndoStack] = useState<Operation[]>([])
+    const [redoStack, setRedoStack] = useState<Operation[]>([])
 
     useEffect(() => {
         async function init() {
@@ -68,6 +72,120 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
         await savePDFAnnotation(annotation)
         setAnnotations((prev: Record<number, PDFAnnotation>) => ({ ...prev, [pageNumber]: annotation }))
     }
+
+    const handleOperation = async (op: Operation) => {
+        // Extract pageNumber from pageId (which is `${pdfFileId}_${pageNumber}`)
+        const match = op.pageId.match(/_(\d+)$/)
+        if (!match) return
+        const pageNumber = parseInt(match[1])
+
+        const currentAnnotations = annotations[pageNumber] || {
+            id: op.pageId,
+            pdfFileId,
+            pageNumber,
+            strokes: [],
+            textFields: []
+        }
+
+        let updatedStrokes = [...currentAnnotations.strokes]
+        let updatedTextFields = [...currentAnnotations.textFields]
+
+        if (op.type === 'add') {
+            updatedStrokes.push(op.stroke)
+        } else if (op.type === 'bulk-update') {
+            updatedStrokes = op.newStrokes
+            updatedTextFields = op.newTextFields || updatedTextFields
+        }
+
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
+        setUndoStack(prev => [...prev, op])
+        setRedoStack([])
+    }
+
+    const handleUndo = async () => {
+        if (undoStack.length === 0) return
+        const newUndoStack = [...undoStack]
+        const op = newUndoStack.pop()!
+        setUndoStack(newUndoStack)
+
+        const match = op.pageId.match(/_(\d+)$/)
+        if (!match) return
+        const pageNumber = parseInt(match[1])
+        const currentAnnotations = annotations[pageNumber]
+
+        if (!currentAnnotations) return
+
+        let updatedStrokes = [...currentAnnotations.strokes]
+        let updatedTextFields = [...currentAnnotations.textFields]
+
+        if (op.type === 'add') {
+            updatedStrokes = updatedStrokes.filter(s => s.id !== op.stroke.id)
+        } else if (op.type === 'bulk-update') {
+            updatedStrokes = op.oldStrokes
+            updatedTextFields = op.oldTextFields || updatedTextFields
+        }
+
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
+        setRedoStack(prev => [...prev, op])
+    }
+
+    const handleRedo = async () => {
+        if (redoStack.length === 0) return
+        const newRedoStack = [...redoStack]
+        const op = newRedoStack.pop()!
+        setRedoStack(newRedoStack)
+
+        const match = op.pageId.match(/_(\d+)$/)
+        if (!match) return
+        const pageNumber = parseInt(match[1])
+        const currentAnnotations = annotations[pageNumber] || {
+            id: op.pageId,
+            pdfFileId,
+            pageNumber,
+            strokes: [],
+            textFields: []
+        }
+
+        let updatedStrokes = [...currentAnnotations.strokes]
+        let updatedTextFields = [...currentAnnotations.textFields]
+
+        if (op.type === 'add') {
+            updatedStrokes.push(op.stroke)
+        } else if (op.type === 'bulk-update') {
+            updatedStrokes = op.newStrokes
+            updatedTextFields = op.newTextFields || updatedTextFields
+        }
+
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
+        setUndoStack(prev => [...prev, op])
+    }
+
+    useEffect(() => {
+        if (onActionsUpdate) {
+            onActionsUpdate({
+                undo: handleUndo,
+                redo: handleRedo,
+                canUndo: undoStack.length > 0,
+                canRedo: redoStack.length > 0
+            })
+        }
+    }, [undoStack.length, redoStack.length, onActionsUpdate])
+
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                if (e.shiftKey) {
+                    handleRedo()
+                } else {
+                    handleUndo()
+                }
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                handleRedo()
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [undoStack, redoStack])
 
     const handleExport = async () => {
         if (!pdfFile) return
@@ -171,6 +289,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                             activeColor={activeColor}
                             activeSize={activeSize}
                             onUpdate={(updated) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields)}
+                            onOperation={handleOperation}
                             onInputTypeChange={() => { }}
                         />
                     </div>
