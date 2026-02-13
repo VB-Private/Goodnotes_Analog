@@ -101,7 +101,7 @@ export default function Toolkit({
     const containerStyle: React.CSSProperties = viewport ? {
         position: 'fixed',
         left: viewport.offsetLeft + (viewport.width / 2),
-        top: viewport.offsetTop + 16,
+        top: viewport.offsetTop + 6,
         transform: `translateX(-50%) scale(${1 / viewport.scale})`,
         transformOrigin: 'top center',
         zIndex: 150,
@@ -113,7 +113,7 @@ export default function Toolkit({
     } : {
         position: 'fixed',
         left: '50%',
-        top: 16,
+        top: 6,
         transform: 'translateX(-50%)',
         zIndex: 150,
         display: 'flex',

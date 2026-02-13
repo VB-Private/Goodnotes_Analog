@@ -62,3 +62,9 @@ export type Operation =
   | { type: 'add'; pageId: string; stroke: Stroke }
   | { type: 'delete'; pageId: string; stroke: Stroke }
   | { type: 'bulk-update'; pageId: string; oldStrokes: Stroke[]; newStrokes: Stroke[]; oldTextFields?: TextField[]; newTextFields?: TextField[] }
+
+export interface Tab {
+  id: string
+  type: 'notes' | 'pdf'
+  title: string
+}

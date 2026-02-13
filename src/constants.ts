@@ -1,2 +1,2 @@
-export const PAGE_WIDTH = 900
-export const PAGE_HEIGHT = 950
+export const PAGE_WIDTH = 1000
+export const PAGE_HEIGHT = 1000
