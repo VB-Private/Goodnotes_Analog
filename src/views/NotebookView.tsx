@@ -7,6 +7,7 @@ import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
 import Toolkit from '../components/Toolkit'
 import Loader from '../components/Loader'
+import PagePreview from '../components/PagePreview'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import { exportNotebookToPDF, exportAnnotatedPDF } from '../utils/export'
 import { getPDFPageCount } from '../utils/pdf'
@@ -72,6 +73,8 @@ export default function NotebookView() {
   const [pdfActions, setPdfActions] = useState<{ undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean } | null>(null)
   const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'notes', type: 'notes', title: 'Notes' }])
   const [activeTabId, setActiveTabId] = useState<string>('notes')
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false)
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([])
   const hasAttemptedInitialScroll = useRef(false)
 
   useEffect(() => {
@@ -434,11 +437,11 @@ export default function NotebookView() {
     setActiveMenuPageId(null)
   }
 
-  async function handleExport() {
-    if (!notebook || pages.length === 0) return
+  async function handleExport(specificPages?: Page[]) {
+    if (!notebook || (specificPages ? specificPages.length === 0 : pages.length === 0)) return
     setIsExporting(true)
     try {
-      await exportNotebookToPDF(notebook, pages)
+      await exportNotebookToPDF(notebook, specificPages || pages)
     } catch (error) {
       console.error('Export failed:', error)
       alert('Failed to export PDF.')
@@ -446,6 +449,21 @@ export default function NotebookView() {
       setIsExporting(false)
     }
   }
+
+  function togglePageSelection(pageId: string) {
+    setSelectedPageIds(prev =>
+      prev.includes(pageId)
+        ? prev.filter(id => id !== pageId)
+        : [...prev, pageId]
+    )
+  }
+  /*   function selectAllPages() {
+      setSelectedPageIds(pages.map(p => p.id))
+    }
+  
+    function deselectAllPages() {
+      setSelectedPageIds([])
+    } */
 
   async function handleExportPDF(e: React.MouseEvent, pdfId: string) {
     e.stopPropagation()
@@ -491,20 +509,25 @@ export default function NotebookView() {
             position: 'absolute',
             top: 6,
             left: 6,
-            zIndex: 20,
+            right: 6,
+            zIndex: 200, // Higher than toolkit (20)
             pointerEvents: 'none',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}
         >
+          {/* Left: Back and Export */}
           <div
             style={{
               pointerEvents: 'auto',
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: 8,
               background: '#fff',
               border: '1px solid #e2e8f0',
               borderRadius: '24px',
-              padding: '4px 16px 4px 4px',
+              padding: '4px',
               boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
             }}
           >
@@ -512,7 +535,7 @@ export default function NotebookView() {
               type="button"
               onClick={() => navigate('/')}
               style={{
-                padding: '12px 16px',
+                padding: '8px 16px',
                 fontSize: '12px',
                 fontWeight: 600,
                 borderRadius: '20px',
@@ -520,19 +543,19 @@ export default function NotebookView() {
                 background: '#f1f5f9',
                 color: '#475569',
                 cursor: 'pointer',
+                transition: 'background 0.2s'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
             >
               Back
             </button>
-            <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
-              {notebook.title}
-            </h1>
-            <button
+            {/*  <button
               type="button"
-              onClick={handleExport}
+              onClick={() => handleExport()}
               disabled={isExporting}
               style={{
-                padding: '12px 16px',
+                padding: '8px 16px',
                 fontSize: '12px',
                 fontWeight: 600,
                 borderRadius: '20px',
@@ -541,13 +564,252 @@ export default function NotebookView() {
                 color: '#fff',
                 cursor: isExporting ? 'not-allowed' : 'pointer',
                 opacity: isExporting ? 0.7 : 1,
-                marginLeft: '4px'
+                transition: 'opacity 0.2s'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = isExporting ? '0.7' : '1'}
             >
               {isExporting ? 'Exporting...' : 'Export PDF'}
-            </button>
+            </button> */}
           </div>
+
+          {/* Right: Note Name (Burger Menu) */}
+          <button
+            type="button"
+            onClick={() => setIsOverlayOpen(true)}
+            style={{
+              pointerEvents: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              background: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '24px',
+              padding: '8px 20px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+              cursor: 'pointer',
+              transition: 'transform 0.1s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.08)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'
+              e.currentTarget.style.transform = 'translateY(0)'
+            }}
+          >
+            <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+              {notebook.title}
+            </h1>
+          </button>
         </div>
+      )}
+
+      {/* Side Overlay */}
+      {isOverlayOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsOverlayOpen(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 1000,
+              transition: 'opacity 0.3s'
+            }}
+          />
+          {/* Content */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              height: '100%',
+              width: '30%',
+              minWidth: '300px',
+              background: '#fff',
+              boxShadow: '-4px 0 15px rgba(0, 0, 0, 0.1)',
+              zIndex: 1001,
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideIn 0.2s ease-out'
+            }}
+          >
+            <style>{`
+              @keyframes slideIn {
+                from { transform: translateX(100%); }
+                to { transform: translateX(0); }
+              }
+            `}</style>
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>Notebook Settings</h2>
+              <button
+                onClick={() => setIsOverlayOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#64748b'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+              {/* <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', gap: '8px' }}>
+                <button
+                  onClick={selectAllPages}
+                  style={{
+                    flex: 1,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    padding: '10px',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllPages}
+                  style={{
+                    flex: 1,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    padding: '10px',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
+                >
+                  Deselect All
+                </button>
+              </div> */}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {pages.map((p, i) => (
+                  <div
+                    key={p.id}
+                    onClick={() => togglePageSelection(p.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '8px',
+                      borderRadius: '16px',
+                      background: selectedPageIds.includes(p.id) ? '#f8fafc' : 'transparent',
+                      border: `1px solid ${selectedPageIds.includes(p.id) ? '#cbd5e1' : 'transparent'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selectedPageIds.includes(p.id)) {
+                        e.currentTarget.style.background = '#f1f5f9'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selectedPageIds.includes(p.id)) {
+                        e.currentTarget.style.background = 'transparent'
+                      }
+                    }}
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <PagePreview page={p} width={70} height={91} />
+                      <div style={{
+                        position: 'absolute',
+                        top: '-6px',
+                        left: '-6px',
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '11px',
+                        border: '2px solid #fff',
+                        background: selectedPageIds.includes(p.id) ? '#020617' : '#fff',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        color: '#fff',
+                        zIndex: 2,
+                        transition: 'all 0.2s'
+                      }}>
+                        {selectedPageIds.includes(p.id) && '✓'}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+                        Page {i + 1}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>
+                        {p.template} template
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => {
+                  if (selectedPageIds.length > 0) {
+                    const selectedPages = pages.filter(p => selectedPageIds.includes(p.id))
+                    handleExport(selectedPages)
+                  } else {
+                    handleExport()
+                  }
+                }}
+                disabled={isExporting}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#020617',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: isExporting ? 'not-allowed' : 'pointer',
+                  opacity: isExporting ? 0.7 : 1,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isExporting ? 'Exporting...' : (
+                  selectedPageIds.length > 0
+                    ? `Export Selected (${selectedPageIds.length})`
+                    : 'Export All Pages'
+                )}
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       <Toolkit
@@ -704,7 +966,7 @@ export default function NotebookView() {
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'flex-start',
-                        paddingTop: 8,
+                        paddingTop: 8
                       }}
                     >
                       <div

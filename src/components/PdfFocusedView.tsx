@@ -188,18 +188,18 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [undoStack, redoStack])
 
-    const handleExport = async () => {
-        if (!pdfFile) return
-        setIsExporting(true)
-        try {
-            await exportAnnotatedPDF(pdfFile, annotations)
-        } catch (error) {
-            console.error('Standalone PDF export failed:', error)
-            alert('Failed to export PDF.')
-        } finally {
-            setIsExporting(false)
-        }
-    }
+    /*  const handleExport = async () => {
+         if (!pdfFile) return
+         setIsExporting(true)
+         try {
+             await exportAnnotatedPDF(pdfFile, annotations)
+         } catch (error) {
+             console.error('Standalone PDF export failed:', error)
+             alert('Failed to export PDF.')
+         } finally {
+             setIsExporting(false)
+         }
+     } */
 
     if (loading) return <Loader />
 
