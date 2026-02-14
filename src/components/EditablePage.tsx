@@ -320,12 +320,14 @@ export default function EditablePage({
     }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
+      const isMultiTouch = (e as TouchEvent).touches && (e as TouchEvent).touches.length > 1
+      if (isMultiTouch) return
+
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
 
       const allowedInput = isPen || isMouse
-
       const shouldProcess = activeTool === 'text' || isShapeTool || (isDrawingTool && allowedInput)
 
       if (onInputTypeChange) {
@@ -355,26 +357,19 @@ export default function EditablePage({
 
       if (isShapeTool) {
         const pos = getPos(e)
-
-        // Handle selection if in select mode OR hitting a shape in any shape mode (optional, but let's stick to user request: select tool for editing)
         if (activeTool === 'select') {
-          // Prevent deselection if we clicked a shape directly (or its children like handles)
           if ((e.target as HTMLElement).closest('[data-shape-id]')) {
             return
           }
-
-          // Mathematical hit test
           const hitShape = [...(page.shapes || [])].reverse().find(s => isPointInShape(pos, s))
           if (hitShape) {
             setSelectedShapeId(hitShape.id)
             if (e.cancelable) e.preventDefault()
             return
           }
-          // If we click empty space in select tool, deselect
           setSelectedShapeId(null)
         }
 
-        // Tap to place new shape
         if (['rect', 'circle', 'triangle'].includes(activeTool)) {
           const newShape: Shape = {
             id: crypto.randomUUID(),
@@ -401,14 +396,12 @@ export default function EditablePage({
       const pos = getPos(e)
 
       if (activeTool === 'lasso') {
-        // Check if clicking inside current selection to drag
         if (selectionBox && isPointInBox(pos, selectionBox, 20)) {
           isDraggingSelectionRef.current = true
           dragStartPosRef.current = pos
           if (e.cancelable) e.preventDefault()
           return
         } else {
-          // Start a new lasso selection
           setSelectedStrokeIds([])
         }
       }
@@ -428,27 +421,22 @@ export default function EditablePage({
       pointsRef.current = [pos]
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
 
-      // Start hold detection for drawing tools
       if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
         isStraightLineModeRef.current = false
-
         const timeoutId = window.setTimeout(() => {
           if (isDrawingRef.current && pointsRef.current.length >= 2) {
             isStraightLineModeRef.current = true
-
-            // Snap to straight line
             const startPoint = pointsRef.current[0]
             const endPoint = pointsRef.current[pointsRef.current.length - 1]
             pointsRef.current = [startPoint, endPoint]
-
             const canvas = strokeCanvasRef.current
             const ctx = canvas?.getContext('2d')
             if (ctx && canvas) {
               ctx.clearRect(0, 0, width, height)
-              drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
+              drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
             }
           }
-        }, 1000) // 1 second hold
+        }, 1000)
         holdTimeoutRef.current = timeoutId
       }
 
@@ -475,11 +463,10 @@ export default function EditablePage({
     }
 
     const handleMove = (e: TouchEvent | MouseEvent) => {
+      if ((e as TouchEvent).touches && (e as TouchEvent).touches.length > 1) return
       const pos = getPos(e)
 
-      if (isShapeTool) {
-        return
-      }
+      if (isShapeTool) return
 
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         if (e.cancelable) e.preventDefault()
@@ -498,7 +485,6 @@ export default function EditablePage({
             const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
             drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
           })
-          // Also draw shapes during drag
           page.shapes.forEach(shape => drawShape(ctx, shape))
         }
         return
@@ -520,10 +506,9 @@ export default function EditablePage({
         if (pointsRef.current.length >= 1) {
           const startPoint = pointsRef.current[0]
           pointsRef.current = [startPoint, pos]
-
           if (ctx) {
             ctx.clearRect(0, 0, width, height)
-            drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
+            drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
           }
         }
       } else {
@@ -537,7 +522,6 @@ export default function EditablePage({
           const newlyErased = page.strokes
             .filter(s => !erasedStrokeIds.includes(s.id) && isStrokeHitByCircle(s, pos, radius))
             .map(s => s.id)
-
           if (newlyErased.length > 0) {
             setErasedStrokeIds(prev => [...prev, ...newlyErased])
           }
@@ -555,7 +539,7 @@ export default function EditablePage({
                 pointsRef.current = [startPoint, endPoint]
                 if (ctx) {
                   ctx.clearRect(0, 0, width, height)
-                  drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
+                  drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
                 }
               }
             }, 500)
@@ -573,11 +557,11 @@ export default function EditablePage({
       })
     }
 
-    const handleUp = () => {
+    const handleUp = (e: TouchEvent | MouseEvent) => {
+      if ((e as TouchEvent).touches && (e as TouchEvent).touches.length > 0) return
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         isDraggingSelectionRef.current = false
         const { x: dx, y: dy } = dragOffsetRef.current
-
         if (dx !== 0 || dy !== 0) {
           const updatedStrokes = page.strokes.map(s => {
             if (selectedStrokeIds.includes(s.id)) {
@@ -612,17 +596,13 @@ export default function EditablePage({
           laserStrokesRef.current.push({ points: [...pointsRef.current], timestamp: Date.now() })
         } else if (activeTool === 'lasso') {
           const lassoPolygon = [...pointsRef.current]
-
           let hasChanges = false
           const newStrokes: Stroke[] = []
           const newSelectedIds: string[] = []
-
           for (let i = 0; i < page.strokes.length; i++) {
             const s = page.strokes[i]
-
             if (s.tool !== 'eraser' && isStrokeInPolygon(s, lassoPolygon)) {
               const relevantErasers = page.strokes.slice(i + 1).filter(e => e.tool === 'eraser')
-
               if (relevantErasers.length > 0) {
                 const fragments = splitStroke(s, relevantErasers)
                 if (fragments.length === 1 && fragments[0] === s) {
@@ -641,7 +621,6 @@ export default function EditablePage({
               newStrokes.push(s)
             }
           }
-
           if (hasChanges) {
             if (onOperation) {
               onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes })
@@ -653,11 +632,9 @@ export default function EditablePage({
             setSelectedStrokeIds(newSelectedIds)
           }
         } else if (activeTool !== 'eraser') {
-          let finalPoints = [...pointsRef.current]
-
           const stroke: Stroke = {
             id: crypto.randomUUID(),
-            points: finalPoints,
+            points: [...pointsRef.current],
             color: activeColor,
             tool: activeTool,
             size: activeSize
@@ -674,12 +651,7 @@ export default function EditablePage({
         if (erasedStrokeIds.length > 0) {
           const newStrokes = page.strokes.filter(s => !erasedStrokeIds.includes(s.id))
           if (onOperation) {
-            onOperation({
-              type: 'bulk-update',
-              pageId: page.id,
-              oldStrokes: page.strokes,
-              newStrokes
-            })
+            onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes })
           } else {
             onUpdate({ ...page, strokes: newStrokes })
           }
@@ -691,19 +663,15 @@ export default function EditablePage({
 
     const target = wrapperRef.current
     if (!target) return
-
     target.addEventListener('touchstart', handleDown, { passive: false })
     target.addEventListener('touchmove', handleMove, { passive: false })
     target.addEventListener('touchend', handleUp)
     target.addEventListener('touchcancel', handleUp)
-
     target.addEventListener('mousedown', handleDown)
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
-
     target.addEventListener('mousemove', handlePointerMove)
     target.addEventListener('mouseleave', handlePointerLeave)
-
     target.addEventListener('contextmenu', (e) => e.preventDefault())
 
     return () => {
@@ -711,11 +679,9 @@ export default function EditablePage({
       target.removeEventListener('touchmove', handleMove)
       target.removeEventListener('touchend', handleUp)
       target.removeEventListener('touchcancel', handleUp)
-
       target.removeEventListener('mousedown', handleDown)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
-
       target.removeEventListener('mousemove', handlePointerMove)
       target.removeEventListener('mouseleave', handlePointerLeave)
     }
@@ -741,10 +707,7 @@ export default function EditablePage({
     if (onOperation) {
       onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
     } else {
-      onUpdate({
-        ...page,
-        shapes: newShapes
-      })
+      onUpdate({ ...page, shapes: newShapes })
     }
   }
 
@@ -754,22 +717,12 @@ export default function EditablePage({
     if (onOperation) {
       onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
     } else {
-      onUpdate({
-        ...page,
-        shapes: newShapes
-      })
+      onUpdate({ ...page, shapes: newShapes })
     }
   }
 
   return (
-    <div
-      style={{
-        width: width * scale,
-        height: height * scale,
-        overflow: 'hidden',
-        margin: '0 auto',
-      }}
-    >
+    <div style={{ width: width * scale, height: height * scale, overflow: 'hidden', margin: '0 auto' }}>
       <div
         ref={wrapperRef}
         style={{
@@ -778,15 +731,10 @@ export default function EditablePage({
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
           position: 'relative',
+          touchAction: 'pinch-zoom',
         }}
       >
-        <Paper
-          template={page.template}
-          width={width}
-          height={height}
-          pdfFileId={page.pdfFileId}
-          pdfPageNumber={page.pdfPageNumber}
-        />
+        <Paper template={page.template} width={width} height={height} pdfFileId={page.pdfFileId} pdfPageNumber={page.pdfPageNumber} />
         {(page.shapes || []).map((s) => (
           <ShapeComponent
             key={s.id}
@@ -809,7 +757,7 @@ export default function EditablePage({
             top: 0,
             width: width,
             height: height,
-            touchAction: 'none',
+            touchAction: 'pinch-zoom',
             pointerEvents: isShapeTool ? 'none' : 'auto',
             cursor: activeTool === 'select' ? 'default' : activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
           }}
@@ -818,15 +766,7 @@ export default function EditablePage({
           ref={laserCanvasRef}
           width={width}
           height={height}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: width,
-            height: height,
-            pointerEvents: 'none',
-            zIndex: 5,
-          }}
+          style={{ position: 'absolute', left: 0, top: 0, width: width, height: height, pointerEvents: 'none', zIndex: 5 }}
         />
         {activeTool === 'eraser' && (
           <div
@@ -835,8 +775,8 @@ export default function EditablePage({
               position: 'absolute',
               top: 0,
               left: 0,
-              width: 0, // Set dynamically
-              height: 0, // Set dynamically
+              width: 0,
+              height: 0,
               border: '2px solid rgba(0,0,0,0.3)',
               borderRadius: '50%',
               pointerEvents: 'none',
@@ -844,7 +784,7 @@ export default function EditablePage({
               display: 'none',
               backgroundColor: 'rgba(255, 255, 255, 0.2)',
               boxShadow: '0 0 0 1px rgba(255,255,255,0.8), inset 0 0 8px rgba(0,0,0,0.1)',
-              backdropFilter: 'contrast(1.1) brightness(1.1)', // Subtle magnification look
+              backdropFilter: 'contrast(1.1) brightness(1.1)',
             }}
           />
         )}
