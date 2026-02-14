@@ -76,6 +76,8 @@ export default function EditablePage({
     if (!wrapperRef.current) return { x: 0, y: 0, pressure: 0.5 }
     const rect = wrapperRef.current.getBoundingClientRect()
     const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
+    const scaleX = width / rect.width
+    const scaleY = height / rect.height
 
     let pressure = 0.5
     if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
@@ -85,8 +87,8 @@ export default function EditablePage({
     }
 
     return {
-      x: (touch.clientX - rect.left) / scale,
-      y: (touch.clientY - rect.top) / scale,
+      x: (touch.clientX - rect.left) * scaleX,
+      y: (touch.clientY - rect.top) * scaleY,
       pressure
     }
   }
@@ -320,7 +322,7 @@ export default function EditablePage({
     }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
-      const isMultiTouch = (e as TouchEvent).touches && (e as TouchEvent).touches.length > 1
+      const isMultiTouch = (e as TouchEvent).touches && (e as TouchEvent).touches.length > 0
       if (isMultiTouch) return
 
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
