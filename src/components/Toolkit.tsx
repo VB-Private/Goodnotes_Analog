@@ -85,13 +85,6 @@ export default function Toolkit({
                 onToolChange('eraser')
                 setOpenPopup(null)
             }
-        } else if (tool === 'figures') {
-            if (activeTool === 'figures') {
-                setOpenPopup(openPopup === 'figures' ? null : 'figures')
-            } else {
-                onToolChange('figures')
-                setOpenPopup(null)
-            }
         } else {
             onToolChange(tool)
             setOpenPopup(null)
@@ -404,40 +397,7 @@ export default function Toolkit({
                 )
             }
 
-            {openPopup === 'figures' && (
-                <div
-                    style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(20px)',
-                        borderRadius: 20,
-                        padding: 16,
-                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
-                        border: '1px solid rgba(0,0,0,0.05)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 16,
-                        pointerEvents: 'auto',
-                        minWidth: 120,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                        <SubToolButton
-                            active={true}
-                            activeColor={activeColor}
-                            onClick={() => {
-                                onToolChange('figures')
-                                setOpenPopup(null)
-                            }}
-                            label="Circle Snapping"
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
-                                <circle cx="12" cy="12" r="9" />
-                            </svg>
-                        </SubToolButton>
-                    </div>
-                </div>
-            )}
+
         </div >
     )
 }

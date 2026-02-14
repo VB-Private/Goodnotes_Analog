@@ -3,7 +3,6 @@ import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField, Operation } from '../types'
 import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
 import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
-// import { generateCirclePoints } from '../utils/shapeDetection'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
 
@@ -316,7 +315,7 @@ export default function EditablePage({
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
 
       // Restrict drawing tools to Pen/Mouse only
-      const isDrawingTool = ['pen', 'pencil', 'crayon', 'figures', 'eraser', 'lasso', 'laser'].includes(activeTool)
+      const isDrawingTool = ['pen', 'pencil', 'crayon', 'eraser', 'lasso', 'laser'].includes(activeTool)
       const allowedInput = isPen || isMouse
 
       const shouldProcess = activeTool === 'text' || (isDrawingTool && allowedInput)
@@ -377,7 +376,7 @@ export default function EditablePage({
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
 
       // Start hold detection for drawing tools
-      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
+      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
         isStraightLineModeRef.current = false
 
         const timeoutId = window.setTimeout(() => {
@@ -496,7 +495,7 @@ export default function EditablePage({
           holdTimeoutRef.current = null
 
           // Restart timeout
-          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
+          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
                 isStraightLineModeRef.current = true
@@ -606,20 +605,11 @@ export default function EditablePage({
             setSelectedStrokeIds(newSelectedIds)
           }
         } else if (activeTool !== 'eraser') {
-          let finalPoints = [...pointsRef.current]
-
-          if (activeTool === 'figures') {
-            // const snappedPoints = generateCirclePoints(pointsRef.current)
-            // if (snappedPoints) {
-            //   finalPoints = snappedPoints
-            // }
-          }
-
           const stroke: Stroke = {
             id: crypto.randomUUID(),
-            points: finalPoints,
+            points: [...pointsRef.current],
             color: activeColor,
-            tool: activeTool === 'figures' ? 'pen' : activeTool,
+            tool: activeTool,
             size: activeSize
           }
           if (onOperation) {
