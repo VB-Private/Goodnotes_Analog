@@ -1,5 +1,6 @@
 export type PageTemplate = 'blank' | 'squared' | 'lined' | 'pdf'
-export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'figures'
+export type ShapeType = 'rect' | 'circle' | 'triangle'
+export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'rect' | 'circle' | 'triangle' | 'select'
 
 export interface StrokePoint {
   x: number
@@ -24,6 +25,18 @@ export interface TextField {
   fontSize: number
 }
 
+export interface Shape {
+  id: string
+  type: ShapeType
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+  size: number
+  isFilled?: boolean
+}
+
 export interface Notebook {
   id: string
   title: string
@@ -39,6 +52,7 @@ export interface Page {
   template: PageTemplate
   strokes: Stroke[]
   textFields: TextField[]
+  shapes: Shape[]
   createdAt: number
   pdfFileId?: string
   pdfPageNumber?: number
@@ -56,12 +70,13 @@ export interface PDFAnnotation {
   pageNumber: number
   strokes: Stroke[]
   textFields: TextField[]
+  shapes: Shape[]
 }
 
 export type Operation =
   | { type: 'add'; pageId: string; stroke: Stroke }
   | { type: 'delete'; pageId: string; stroke: Stroke }
-  | { type: 'bulk-update'; pageId: string; oldStrokes: Stroke[]; newStrokes: Stroke[]; oldTextFields?: TextField[]; newTextFields?: TextField[] }
+  | { type: 'bulk-update'; pageId: string; oldStrokes: Stroke[]; newStrokes: Stroke[]; oldTextFields?: TextField[]; newTextFields?: TextField[]; oldShapes?: Shape[]; newShapes?: Shape[] }
 
 export interface Tab {
   id: string

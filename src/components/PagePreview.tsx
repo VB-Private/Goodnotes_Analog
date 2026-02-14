@@ -62,6 +62,49 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                         opacity={s.tool === 'pencil' ? 0.6 : s.tool === 'crayon' ? 0.4 : 1}
                     />
                 ))}
+
+                {(page.shapes || []).map((s) => {
+                    const fill = (s.isFilled !== false) ? (s.color + '40') : 'none'
+                    if (s.type === 'rect') {
+                        return (
+                            <rect
+                                key={s.id}
+                                x={s.x}
+                                y={s.y}
+                                width={s.width}
+                                height={s.height}
+                                fill={fill}
+                                stroke={s.color}
+                                strokeWidth={s.size}
+                            />
+                        )
+                    } else if (s.type === 'circle') {
+                        return (
+                            <ellipse
+                                key={s.id}
+                                cx={s.x + s.width / 2}
+                                cy={s.y + s.height / 2}
+                                rx={Math.abs(s.width / 2)}
+                                ry={Math.abs(s.height / 2)}
+                                fill={fill}
+                                stroke={s.color}
+                                strokeWidth={s.size}
+                            />
+                        )
+                    } else if (s.type === 'triangle') {
+                        const points = `${s.x + s.width / 2},${s.y} ${s.x + s.width},${s.y + s.height} ${s.x},${s.y + s.height}`
+                        return (
+                            <polygon
+                                key={s.id}
+                                points={points}
+                                fill={fill}
+                                stroke={s.color}
+                                strokeWidth={s.size}
+                            />
+                        )
+                    }
+                    return null
+                })}
             </svg>
         </div>
     )

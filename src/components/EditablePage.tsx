@@ -1,11 +1,11 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
-import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
-import { generateCirclePoints } from '../utils/shapeDetection'
+import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, Operation } from '../types'
+import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
+import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle, isPointInShape } from '../utils/geometry'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
+import ShapeComponent from './ShapeComponent'
 
 interface EditablePageProps {
   page: Page
@@ -15,6 +15,7 @@ interface EditablePageProps {
   activeSize: number
   onUpdate: (page: Page) => void
   onOperation?: (op: Operation) => void
+  onToolChange?: (tool: ToolType) => void
   onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
   width?: number
   height?: number
@@ -28,6 +29,7 @@ export default function EditablePage({
   activeSize,
   onUpdate,
   onOperation,
+  onToolChange,
   onInputTypeChange,
   width: customWidth,
   height: customHeight
@@ -36,10 +38,12 @@ export default function EditablePage({
   const height = customHeight || PAGE_HEIGHT
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserCanvasRef = useRef<HTMLCanvasElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const isDrawingRef = useRef(false)
   const pointsRef = useRef<StrokePoint[]>([])
   const lastLineWidthRef = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
   const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([])
@@ -65,6 +69,28 @@ export default function EditablePage({
     }
   }, [selectedStrokes])
 
+  const isShapeTool = ['rect', 'circle', 'triangle', 'select'].includes(activeTool)
+  const isDrawingTool = ['pen', 'pencil', 'crayon', 'eraser', 'lasso', 'laser'].includes(activeTool)
+
+  const getPos = (e: TouchEvent | MouseEvent | React.MouseEvent | React.TouchEvent) => {
+    if (!wrapperRef.current) return { x: 0, y: 0, pressure: 0.5 }
+    const rect = wrapperRef.current.getBoundingClientRect()
+    const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
+
+    let pressure = 0.5
+    if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
+      pressure = (e as any).touches[0].force || 0.1
+    } else if ((e as any).pressure) {
+      pressure = (e as any).pressure || 0.5
+    }
+
+    return {
+      x: (touch.clientX - rect.left) / scale,
+      y: (touch.clientY - rect.top) / scale,
+      pressure
+    }
+  }
+
   // Draw background strokes (saved ones)
   useEffect(() => {
     const canvas = strokeCanvasRef.current
@@ -79,7 +105,7 @@ export default function EditablePage({
     ctx.scale(dpr, dpr)
 
     ctx.clearRect(0, 0, width, height)
-    drawAllStrokes(ctx, page.strokes, null)
+    drawAllStrokes(ctx, page.strokes, null, undefined)
 
     // Highlight selected strokes
     if (selectedStrokeIds.length > 0) {
@@ -117,7 +143,7 @@ export default function EditablePage({
       })
       ctx.restore()
     }
-  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds])
+  }, [page.strokes, page.shapes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds])
 
   // Laser animation loop
   useEffect(() => {
@@ -218,6 +244,9 @@ export default function EditablePage({
     if (activeTool !== 'lasso') {
       setSelectedStrokeIds([])
     }
+    if (!['rect', 'circle', 'triangle'].includes(activeTool)) {
+      setSelectedShapeId(null)
+    }
   }, [activeTool])
 
   // High-performance event listeners
@@ -230,26 +259,6 @@ export default function EditablePage({
     const forceEl = document.getElementById('force')
     const touchesEl = document.getElementById('touches')
     const requestIdleCallback = (window as any).requestIdleCallback || ((fn: any) => setTimeout(fn, 1))
-
-    function getPos(e: TouchEvent | MouseEvent) {
-      const rect = canvas!.getBoundingClientRect()
-      const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
-      const scaleX = width / rect.width
-      const scaleY = height / rect.height
-
-      let pressure = 0.5
-      if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
-        pressure = (e as any).touches[0].force || 0.1
-      } else if (e instanceof PointerEvent) {
-        pressure = e.pressure || 0.5
-      }
-
-      return {
-        x: (touch.clientX - rect.left) * scaleX,
-        y: (touch.clientY - rect.top) * scaleY,
-        pressure
-      }
-    }
 
     function drawSegment(points: StrokePoint[]) {
       if (!ctx) return
@@ -315,11 +324,9 @@ export default function EditablePage({
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
 
-      // Restrict drawing tools to Pen/Mouse only
-      const isDrawingTool = ['pen', 'pencil', 'crayon', 'figures', 'eraser', 'lasso', 'laser'].includes(activeTool)
       const allowedInput = isPen || isMouse
 
-      const shouldProcess = activeTool === 'text' || (isDrawingTool && allowedInput)
+      const shouldProcess = activeTool === 'text' || isShapeTool || (isDrawingTool && allowedInput)
 
       if (onInputTypeChange) {
         onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
@@ -344,6 +351,51 @@ export default function EditablePage({
         })
         if (e.cancelable) e.preventDefault()
         return
+      }
+
+      if (isShapeTool) {
+        const pos = getPos(e)
+
+        // Handle selection if in select mode OR hitting a shape in any shape mode (optional, but let's stick to user request: select tool for editing)
+        if (activeTool === 'select') {
+          // Prevent deselection if we clicked a shape directly (or its children like handles)
+          if ((e.target as HTMLElement).closest('[data-shape-id]')) {
+            return
+          }
+
+          // Mathematical hit test
+          const hitShape = [...(page.shapes || [])].reverse().find(s => isPointInShape(pos, s))
+          if (hitShape) {
+            setSelectedShapeId(hitShape.id)
+            if (e.cancelable) e.preventDefault()
+            return
+          }
+          // If we click empty space in select tool, deselect
+          setSelectedShapeId(null)
+        }
+
+        // Tap to place new shape
+        if (['rect', 'circle', 'triangle'].includes(activeTool)) {
+          const newShape: Shape = {
+            id: crypto.randomUUID(),
+            type: activeTool as any,
+            x: pos.x - 50,
+            y: pos.y - 50,
+            width: 100,
+            height: 100,
+            color: activeColor,
+            size: activeSize,
+            isFilled: true
+          }
+          setSelectedShapeId(newShape.id)
+          onUpdate({
+            ...page,
+            shapes: [...(page.shapes || []), newShape]
+          })
+          if (onToolChange) onToolChange('select')
+          if (e.cancelable) e.preventDefault()
+          return
+        }
       }
 
       const pos = getPos(e)
@@ -377,7 +429,7 @@ export default function EditablePage({
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
 
       // Start hold detection for drawing tools
-      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
+      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
         isStraightLineModeRef.current = false
 
         const timeoutId = window.setTimeout(() => {
@@ -393,7 +445,7 @@ export default function EditablePage({
             const ctx = canvas?.getContext('2d')
             if (ctx && canvas) {
               ctx.clearRect(0, 0, width, height)
-              drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
+              drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
             }
           }
         }, 1000) // 1 second hold
@@ -425,26 +477,29 @@ export default function EditablePage({
     const handleMove = (e: TouchEvent | MouseEvent) => {
       const pos = getPos(e)
 
+      if (isShapeTool) {
+        return
+      }
+
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         if (e.cancelable) e.preventDefault()
         const dx = pos.x - dragStartPosRef.current.x
         const dy = pos.y - dragStartPosRef.current.y
         dragOffsetRef.current = { x: dx, y: dy }
 
-        // Visual feedback: clear and redraw everything with offset selected strokes
         if (ctx) {
           ctx.clearRect(0, 0, width, height)
-          // Draw unselected strokes
           page.strokes.forEach(s => {
             if (!selectedStrokeIds.includes(s.id)) {
               drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
             }
           })
-          // Draw selected strokes with offset
           selectedStrokes.forEach(s => {
             const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
             drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
           })
+          // Also draw shapes during drag
+          page.shapes.forEach(shape => drawShape(ctx, shape))
         }
         return
       }
@@ -462,15 +517,13 @@ export default function EditablePage({
       }
 
       if (isStraightLineModeRef.current) {
-        // Update the end point of the straight line
         if (pointsRef.current.length >= 1) {
           const startPoint = pointsRef.current[0]
           pointsRef.current = [startPoint, pos]
 
-          // Redraw to show the updated line
           if (ctx) {
             ctx.clearRect(0, 0, width, height)
-            drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
+            drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
           }
         }
       } else {
@@ -490,25 +543,19 @@ export default function EditablePage({
           }
         }
 
-        // Reset hold detection on move if not yet snapped
         if (holdTimeoutRef.current) {
           window.clearTimeout(holdTimeoutRef.current)
           holdTimeoutRef.current = null
-
-          // Restart timeout
-          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
+          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
                 isStraightLineModeRef.current = true
                 const startPoint = pointsRef.current[0]
                 const endPoint = pointsRef.current[pointsRef.current.length - 1]
                 pointsRef.current = [startPoint, endPoint]
-
-                const canvas = strokeCanvasRef.current
-                const ctx = canvas?.getContext('2d')
-                if (ctx && canvas) {
+                if (ctx) {
                   ctx.clearRect(0, 0, width, height)
-                  drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
+                  drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool }, page.shapes)
                 }
               }
             }, 500)
@@ -608,18 +655,11 @@ export default function EditablePage({
         } else if (activeTool !== 'eraser') {
           let finalPoints = [...pointsRef.current]
 
-          if (activeTool === 'figures') {
-            const snappedPoints = generateCirclePoints(pointsRef.current)
-            if (snappedPoints) {
-              finalPoints = snappedPoints
-            }
-          }
-
           const stroke: Stroke = {
             id: crypto.randomUUID(),
             points: finalPoints,
             color: activeColor,
-            tool: activeTool === 'figures' ? 'pen' : activeTool,
+            tool: activeTool,
             size: activeSize
           }
           if (onOperation) {
@@ -649,34 +689,37 @@ export default function EditablePage({
       pointsRef.current = []
     }
 
-    canvas.addEventListener('touchstart', handleDown, { passive: false })
-    canvas.addEventListener('touchmove', handleMove, { passive: false })
-    canvas.addEventListener('touchend', handleUp)
-    canvas.addEventListener('touchcancel', handleUp)
+    const target = wrapperRef.current
+    if (!target) return
 
-    canvas.addEventListener('mousedown', handleDown)
+    target.addEventListener('touchstart', handleDown, { passive: false })
+    target.addEventListener('touchmove', handleMove, { passive: false })
+    target.addEventListener('touchend', handleUp)
+    target.addEventListener('touchcancel', handleUp)
+
+    target.addEventListener('mousedown', handleDown)
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
 
-    canvas.addEventListener('mousemove', handlePointerMove)
-    canvas.addEventListener('mouseleave', handlePointerLeave)
+    target.addEventListener('mousemove', handlePointerMove)
+    target.addEventListener('mouseleave', handlePointerLeave)
 
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+    target.addEventListener('contextmenu', (e) => e.preventDefault())
 
     return () => {
-      canvas.removeEventListener('touchstart', handleDown)
-      canvas.removeEventListener('touchmove', handleMove)
-      canvas.removeEventListener('touchend', handleUp)
-      canvas.removeEventListener('touchcancel', handleUp)
+      target.removeEventListener('touchstart', handleDown)
+      target.removeEventListener('touchmove', handleMove)
+      target.removeEventListener('touchend', handleUp)
+      target.removeEventListener('touchcancel', handleUp)
 
-      canvas.removeEventListener('mousedown', handleDown)
+      target.removeEventListener('mousedown', handleDown)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
 
-      canvas.removeEventListener('mousemove', handlePointerMove)
-      canvas.removeEventListener('mouseleave', handlePointerLeave)
+      target.removeEventListener('mousemove', handlePointerMove)
+      target.removeEventListener('mouseleave', handlePointerLeave)
     }
-  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes, erasedStrokeIds, onOperation, width, height])
+  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes, erasedStrokeIds, onOperation, width, height, scale])
 
   function handleTextFieldUpdate(id: string, text: string) {
     onUpdate({
@@ -692,6 +735,32 @@ export default function EditablePage({
     })
   }
 
+  function handleShapeUpdate(id: string, updates: Partial<Shape>) {
+    const oldShapes = [...(page.shapes || [])]
+    const newShapes = (page.shapes || []).map((s) => (s.id === id ? { ...s, ...updates } : s))
+    if (onOperation) {
+      onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
+    } else {
+      onUpdate({
+        ...page,
+        shapes: newShapes
+      })
+    }
+  }
+
+  function handleShapeDelete(id: string) {
+    const oldShapes = [...(page.shapes || [])]
+    const newShapes = (page.shapes || []).filter((s) => s.id !== id)
+    if (onOperation) {
+      onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
+    } else {
+      onUpdate({
+        ...page,
+        shapes: newShapes
+      })
+    }
+  }
+
   return (
     <div
       style={{
@@ -702,6 +771,7 @@ export default function EditablePage({
       }}
     >
       <div
+        ref={wrapperRef}
         style={{
           width: width,
           height: height,
@@ -717,6 +787,18 @@ export default function EditablePage({
           pdfFileId={page.pdfFileId}
           pdfPageNumber={page.pdfPageNumber}
         />
+        {(page.shapes || []).map((s) => (
+          <ShapeComponent
+            key={s.id}
+            shape={s}
+            isSelected={s.id === selectedShapeId}
+            scale={scale}
+            onUpdate={handleShapeUpdate}
+            onDelete={handleShapeDelete}
+            onSelect={setSelectedShapeId}
+            pointerEvents={activeTool === 'select' ? 'auto' : 'none'}
+          />
+        ))}
         <canvas
           ref={strokeCanvasRef}
           width={width}
@@ -727,8 +809,9 @@ export default function EditablePage({
             top: 0,
             width: width,
             height: height,
-            touchAction: 'manipulation',
-            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
+            touchAction: 'none',
+            pointerEvents: isShapeTool ? 'none' : 'auto',
+            cursor: activeTool === 'select' ? 'default' : activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
           }}
         />
         <canvas

@@ -172,3 +172,30 @@ export function isStrokeHitByCircle(stroke: Stroke, center: { x: number, y: numb
     }
     return false
 }
+/**
+ * Checks if a point is inside a Shape object (rect, circle, triangle).
+ */
+export function isPointInShape(point: { x: number, y: number }, shape: { type: string, x: number, y: number, width: number, height: number }): boolean {
+    if (shape.type === 'rect') {
+        const minX = Math.min(shape.x, shape.x + shape.width)
+        const maxX = Math.max(shape.x, shape.x + shape.width)
+        const minY = Math.min(shape.y, shape.y + shape.height)
+        const maxY = Math.max(shape.y, shape.y + shape.height)
+        return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+    } else if (shape.type === 'circle') {
+        const centerX = shape.x + shape.width / 2
+        const centerY = shape.y + shape.height / 2
+        const rx = Math.abs(shape.width / 2)
+        const ry = Math.abs(shape.height / 2)
+        if (rx === 0 || ry === 0) return false
+        const dx = point.x - centerX
+        const dy = point.y - centerY
+        return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1
+    } else if (shape.type === 'triangle') {
+        const p1 = { x: shape.x + shape.width / 2, y: shape.y }
+        const p2 = { x: shape.x + shape.width, y: shape.y + shape.height }
+        const p3 = { x: shape.x, y: shape.y + shape.height }
+        return isPointInPolygon(point, [p1, p2, p3])
+    }
+    return false
+}
