@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Loader from './Loader'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
-import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Shape, Operation } from '../types'
+import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Operation } from '../types'
 import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
 import { exportAnnotatedPDF } from '../utils/export'
 import EditablePage from './EditablePage'
@@ -61,15 +61,14 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
         init()
     }, [pdfFileId])
 
-    const handleUpdateAnnotation = async (pageNumber: number, strokes: Stroke[], textFields: TextField[], shapes: Shape[]) => {
+    const handleUpdateAnnotation = async (pageNumber: number, strokes: Stroke[], textFields: TextField[]) => {
         const id = `${pdfFileId}_${pageNumber}`
         const annotation: PDFAnnotation = {
             id,
             pdfFileId,
             pageNumber,
             strokes,
-            textFields,
-            shapes
+            textFields
         }
         await savePDFAnnotation(annotation)
         setAnnotations((prev: Record<number, PDFAnnotation>) => ({ ...prev, [pageNumber]: annotation }))
@@ -86,23 +85,20 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
             pdfFileId,
             pageNumber,
             strokes: [],
-            textFields: [],
-            shapes: []
+            textFields: []
         }
 
         let updatedStrokes = [...currentAnnotations.strokes]
         let updatedTextFields = [...currentAnnotations.textFields]
-        let updatedShapes = [...(currentAnnotations.shapes || [])]
 
         if (op.type === 'add') {
             updatedStrokes.push(op.stroke)
         } else if (op.type === 'bulk-update') {
             updatedStrokes = op.newStrokes
             updatedTextFields = op.newTextFields || updatedTextFields
-            updatedShapes = op.newShapes || updatedShapes
         }
 
-        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields, updatedShapes)
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
         setUndoStack(prev => [...prev, op])
         setRedoStack([])
     }
@@ -122,17 +118,15 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
 
         let updatedStrokes = [...currentAnnotations.strokes]
         let updatedTextFields = [...currentAnnotations.textFields]
-        let updatedShapes = [...(currentAnnotations.shapes || [])]
 
         if (op.type === 'add') {
             updatedStrokes = updatedStrokes.filter(s => s.id !== op.stroke.id)
         } else if (op.type === 'bulk-update') {
             updatedStrokes = op.oldStrokes
             updatedTextFields = op.oldTextFields || updatedTextFields
-            updatedShapes = op.oldShapes || updatedShapes
         }
 
-        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields, updatedShapes)
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
         setRedoStack(prev => [...prev, op])
     }
 
@@ -150,23 +144,20 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
             pdfFileId,
             pageNumber,
             strokes: [],
-            textFields: [],
-            shapes: []
+            textFields: []
         }
 
         let updatedStrokes = [...currentAnnotations.strokes]
         let updatedTextFields = [...currentAnnotations.textFields]
-        let updatedShapes = [...(currentAnnotations.shapes || [])]
 
         if (op.type === 'add') {
             updatedStrokes.push(op.stroke)
         } else if (op.type === 'bulk-update') {
             updatedStrokes = op.newStrokes
             updatedTextFields = op.newTextFields || updatedTextFields
-            updatedShapes = op.newShapes || updatedShapes
         }
 
-        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields, updatedShapes)
+        await handleUpdateAnnotation(pageNumber, updatedStrokes, updatedTextFields)
         setUndoStack(prev => [...prev, op])
     }
 
@@ -290,7 +281,6 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                                 template: 'pdf',
                                 strokes: annotations[pageNumber]?.strokes || [],
                                 textFields: annotations[pageNumber]?.textFields || [],
-                                shapes: annotations[pageNumber]?.shapes || [],
                                 createdAt: 0,
                                 pdfFileId,
                                 pdfPageNumber: pageNumber
@@ -301,7 +291,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                             activeTool={activeTool}
                             activeColor={activeColor}
                             activeSize={activeSize}
-                            onUpdate={(updated) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields, updated.shapes)}
+                            onUpdate={(updated) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields)}
                             onOperation={handleOperation}
                             onInputTypeChange={() => { }}
                         />

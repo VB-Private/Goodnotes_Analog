@@ -1,6 +1,6 @@
 import { PDFDocument, rgb } from 'pdf-lib'
 import download from 'downloadjs'
-import type { Notebook, Page, Stroke, TextField, PDFFile, Shape } from '../types'
+import type { Notebook, Page, Stroke, TextField, PDFFile } from '../types'
 import { getPDFFile } from '../storage/db'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import { splitStroke } from './geometry'
@@ -116,7 +116,7 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
  */
 function drawAnnotationsOnPage(
     pdfPage: any,
-    pageContent: { strokes: Stroke[]; textFields?: TextField[]; shapes?: Shape[] },
+    pageContent: { strokes: Stroke[]; textFields?: TextField[] },
     scale: { x: number; y: number } = { x: 1, y: 1 }
 ) {
     const { height } = pdfPage.getSize()
@@ -182,88 +182,7 @@ function drawAnnotationsOnPage(
             color: rgb(color.r, color.g, color.b),
         })
     }
-
-    // --------------------------------------------------------------------
-    //  Draw Shapes
-    // --------------------------------------------------------------------
-    for (const shape of pageContent.shapes || []) {
-        const color = hexToRgb(shape.color)
-        const pdfColor = rgb(color.r, color.g, color.b)
-        const fillOpacity = 0.25
-        const strokeOpacity = 1.0
-
-        if (shape.type === 'rect') {
-            // Draw fill
-            if (shape.isFilled !== false) {
-                pdfPage.drawRectangle({
-                    x: shape.x * scaleX,
-                    y: height - (shape.y + shape.height) * scaleY,
-                    width: shape.width * scaleX,
-                    height: shape.height * scaleY,
-                    color: pdfColor,
-                    opacity: fillOpacity,
-                })
-            }
-            // Draw border
-            pdfPage.drawRectangle({
-                x: shape.x * scaleX,
-                y: height - (shape.y + shape.height) * scaleY,
-                width: shape.width * scaleX,
-                height: shape.height * scaleY,
-                borderColor: pdfColor,
-                borderWidth: shape.size * scaleX,
-                opacity: 0, // No fill for border call
-                borderOpacity: strokeOpacity,
-            })
-        } else if (shape.type === 'circle') {
-            const centerX = (shape.x + shape.width / 2) * scaleX
-            const centerY = height - (shape.y + shape.height / 2) * scaleY
-            const rx = Math.abs(shape.width / 2) * scaleX
-            const ry = Math.abs(shape.height / 2) * scaleY
-
-            if (shape.isFilled !== false) {
-                pdfPage.drawEllipse({
-                    x: centerX,
-                    y: centerY,
-                    xScale: rx,
-                    yScale: ry,
-                    color: pdfColor,
-                    opacity: fillOpacity,
-                })
-            }
-            pdfPage.drawEllipse({
-                x: centerX,
-                y: centerY,
-                xScale: rx,
-                yScale: ry,
-                borderColor: pdfColor,
-                borderWidth: shape.size * scaleX,
-                opacity: 0,
-                borderOpacity: strokeOpacity,
-            })
-        } else if (shape.type === 'triangle') {
-            const p1 = { x: (shape.x + shape.width / 2) * scaleX, y: height - shape.y * scaleY }
-            const p2 = { x: (shape.x + shape.width) * scaleX, y: height - (shape.y + shape.height) * scaleY }
-            const p3 = { x: shape.x * scaleX, y: height - (shape.y + shape.height) * scaleY }
-
-            if (shape.isFilled !== false) {
-                pdfPage.drawPolygon({
-                    points: [p1, p2, p3],
-                    color: pdfColor,
-                    opacity: fillOpacity,
-                })
-            }
-            pdfPage.drawPolygon({
-                points: [p1, p2, p3],
-                borderColor: pdfColor,
-                borderWidth: shape.size * scaleX,
-                opacity: 0,
-                borderOpacity: strokeOpacity,
-            })
-        }
-    }
 }
-
 
 // ----------------------------------------------------------------------
 //  Public export functions (unchanged)
@@ -345,7 +264,7 @@ export async function exportNotebookToPDF(notebook: Notebook, pages: Page[]) {
 
 export async function exportAnnotatedPDF(
     pdfFile: PDFFile,
-    annotationsMap: Record<number, { strokes: Stroke[]; textFields: TextField[]; shapes?: Shape[] }>
+    annotationsMap: Record<number, { strokes: Stroke[]; textFields: TextField[] }>
 ) {
     const pdfBytes = new Uint8Array(await pdfFile.blob.arrayBuffer())
     const sourceDoc = await PDFDocument.load(pdfBytes)

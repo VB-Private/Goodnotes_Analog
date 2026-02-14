@@ -32,10 +32,7 @@ export default function NotebookView() {
   // Toolkit state
   const [activeTool, setActiveTool] = useState<ToolType>(() => {
     const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
-    const parsed = saved ? JSON.parse(saved) : null
-    const tool = parsed?.activeTool
-    const validTools: ToolType[] = ['pen', 'pencil', 'crayon', 'eraser', 'text', 'laser', 'lasso', 'rect', 'circle', 'triangle']
-    return validTools.includes(tool) ? tool : 'pen'
+    return saved ? JSON.parse(saved).activeTool : 'pen'
   })
   const [activeColor, setActiveColor] = useState(() => {
     const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
@@ -220,8 +217,7 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToUpdate,
           strokes: op.newStrokes,
-          textFields: op.newTextFields || pageToUpdate.textFields,
-          shapes: op.newShapes || pageToUpdate.shapes
+          textFields: op.newTextFields || pageToUpdate.textFields
         }
         handlePageUpdate(updatedPage)
         setUndoStack(prev => [...prev, op])
@@ -254,8 +250,7 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToUndo,
           strokes: op.oldStrokes,
-          textFields: op.oldTextFields || pageToUndo.textFields,
-          shapes: op.oldShapes || pageToUndo.shapes
+          textFields: op.oldTextFields || pageToUndo.textFields
         }
         updatePage(updatedPage)
         setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
@@ -288,8 +283,7 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToRedo,
           strokes: op.newStrokes,
-          textFields: op.newTextFields || pageToRedo.textFields,
-          shapes: op.newShapes || pageToRedo.shapes
+          textFields: op.newTextFields || pageToRedo.textFields
         }
         updatePage(updatedPage)
         setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
@@ -307,7 +301,6 @@ export default function NotebookView() {
       template,
       strokes: [],
       textFields: [],
-      shapes: [],
       createdAt: Date.now(),
     }
     await createPage(page)
@@ -438,9 +431,7 @@ export default function NotebookView() {
         oldStrokes: pageToClear.strokes,
         newStrokes: [],
         oldTextFields: pageToClear.textFields,
-        newTextFields: [],
-        oldShapes: pageToClear.shapes,
-        newShapes: []
+        newTextFields: []
       })
     }
     setActiveMenuPageId(null)
@@ -1091,7 +1082,6 @@ export default function NotebookView() {
                         activeSize={activeSize}
                         onUpdate={handlePageUpdate}
                         onOperation={handleOperation}
-                        onToolChange={setActiveTool}
                         onInputTypeChange={() => { }} // Dummy as it was removed
                       />
                     </div>

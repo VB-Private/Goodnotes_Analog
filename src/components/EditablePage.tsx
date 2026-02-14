@@ -1,11 +1,11 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
-import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle, isPointInShape } from '../utils/geometry'
+import type { Page, Stroke, StrokePoint, ToolType, TextField, Operation } from '../types'
+import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
+import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
+// import { generateCirclePoints } from '../utils/shapeDetection'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
-import ShapeComponent from './ShapeComponent'
 
 interface EditablePageProps {
   page: Page
@@ -15,7 +15,6 @@ interface EditablePageProps {
   activeSize: number
   onUpdate: (page: Page) => void
   onOperation?: (op: Operation) => void
-  onToolChange?: (tool: ToolType) => void
   onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
   width?: number
   height?: number
@@ -29,7 +28,6 @@ export default function EditablePage({
   activeSize,
   onUpdate,
   onOperation,
-  onToolChange,
   onInputTypeChange,
   width: customWidth,
   height: customHeight
@@ -38,12 +36,10 @@ export default function EditablePage({
   const height = customHeight || PAGE_HEIGHT
   const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
   const laserCanvasRef = useRef<HTMLCanvasElement>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
   const isDrawingRef = useRef(false)
   const pointsRef = useRef<StrokePoint[]>([])
   const lastLineWidthRef = useRef<number>(0)
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
   const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([])
@@ -69,30 +65,6 @@ export default function EditablePage({
     }
   }, [selectedStrokes])
 
-  const isShapeTool = ['rect', 'circle', 'triangle', 'select'].includes(activeTool)
-  const isDrawingTool = ['pen', 'pencil', 'crayon', 'eraser', 'lasso', 'laser'].includes(activeTool)
-
-  const getPos = (e: TouchEvent | MouseEvent | React.MouseEvent | React.TouchEvent) => {
-    if (!wrapperRef.current) return { x: 0, y: 0, pressure: 0.5 }
-    const rect = wrapperRef.current.getBoundingClientRect()
-    const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
-    const scaleX = width / rect.width
-    const scaleY = height / rect.height
-
-    let pressure = 0.5
-    if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
-      pressure = (e as any).touches[0].force || 0.1
-    } else if ((e as any).pressure) {
-      pressure = (e as any).pressure || 0.5
-    }
-
-    return {
-      x: (touch.clientX - rect.left) * scaleX,
-      y: (touch.clientY - rect.top) * scaleY,
-      pressure
-    }
-  }
-
   // Draw background strokes (saved ones)
   useEffect(() => {
     const canvas = strokeCanvasRef.current
@@ -107,7 +79,7 @@ export default function EditablePage({
     ctx.scale(dpr, dpr)
 
     ctx.clearRect(0, 0, width, height)
-    drawAllStrokes(ctx, page.strokes, null, undefined)
+    drawAllStrokes(ctx, page.strokes, null)
 
     // Highlight selected strokes
     if (selectedStrokeIds.length > 0) {
@@ -145,7 +117,7 @@ export default function EditablePage({
       })
       ctx.restore()
     }
-  }, [page.strokes, page.shapes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds])
+  }, [page.strokes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds])
 
   // Laser animation loop
   useEffect(() => {
@@ -246,9 +218,6 @@ export default function EditablePage({
     if (activeTool !== 'lasso') {
       setSelectedStrokeIds([])
     }
-    if (!['rect', 'circle', 'triangle'].includes(activeTool)) {
-      setSelectedShapeId(null)
-    }
   }, [activeTool])
 
   // High-performance event listeners
@@ -261,6 +230,26 @@ export default function EditablePage({
     const forceEl = document.getElementById('force')
     const touchesEl = document.getElementById('touches')
     const requestIdleCallback = (window as any).requestIdleCallback || ((fn: any) => setTimeout(fn, 1))
+
+    function getPos(e: TouchEvent | MouseEvent) {
+      const rect = canvas!.getBoundingClientRect()
+      const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
+      const scaleX = width / rect.width
+      const scaleY = height / rect.height
+
+      let pressure = 0.5
+      if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
+        pressure = (e as any).touches[0].force || 0.1
+      } else if (e instanceof PointerEvent) {
+        pressure = e.pressure || 0.5
+      }
+
+      return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY,
+        pressure
+      }
+    }
 
     function drawSegment(points: StrokePoint[]) {
       if (!ctx) return
@@ -322,15 +311,15 @@ export default function EditablePage({
     }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
-      const isMultiTouch = (e as TouchEvent).touches && (e as TouchEvent).touches.length > 0
-      if (isMultiTouch) return
-
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
 
+      // Restrict drawing tools to Pen/Mouse only
+      const isDrawingTool = ['pen', 'pencil', 'crayon', 'figures', 'eraser', 'lasso', 'laser'].includes(activeTool)
       const allowedInput = isPen || isMouse
-      const shouldProcess = activeTool === 'text' || isShapeTool || (isDrawingTool && allowedInput)
+
+      const shouldProcess = activeTool === 'text' || (isDrawingTool && allowedInput)
 
       if (onInputTypeChange) {
         onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
@@ -357,53 +346,17 @@ export default function EditablePage({
         return
       }
 
-      if (isShapeTool) {
-        const pos = getPos(e)
-        if (activeTool === 'select') {
-          if ((e.target as HTMLElement).closest('[data-shape-id]')) {
-            return
-          }
-          const hitShape = [...(page.shapes || [])].reverse().find(s => isPointInShape(pos, s))
-          if (hitShape) {
-            setSelectedShapeId(hitShape.id)
-            if (e.cancelable) e.preventDefault()
-            return
-          }
-          setSelectedShapeId(null)
-        }
-
-        if (['rect', 'circle', 'triangle'].includes(activeTool)) {
-          const newShape: Shape = {
-            id: crypto.randomUUID(),
-            type: activeTool as any,
-            x: pos.x - 50,
-            y: pos.y - 50,
-            width: 100,
-            height: 100,
-            color: activeColor,
-            size: activeSize,
-            isFilled: true
-          }
-          setSelectedShapeId(newShape.id)
-          onUpdate({
-            ...page,
-            shapes: [...(page.shapes || []), newShape]
-          })
-          if (onToolChange) onToolChange('select')
-          if (e.cancelable) e.preventDefault()
-          return
-        }
-      }
-
       const pos = getPos(e)
 
       if (activeTool === 'lasso') {
+        // Check if clicking inside current selection to drag
         if (selectionBox && isPointInBox(pos, selectionBox, 20)) {
           isDraggingSelectionRef.current = true
           dragStartPosRef.current = pos
           if (e.cancelable) e.preventDefault()
           return
         } else {
+          // Start a new lasso selection
           setSelectedStrokeIds([])
         }
       }
@@ -423,14 +376,19 @@ export default function EditablePage({
       pointsRef.current = [pos]
       lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
 
-      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
+      // Start hold detection for drawing tools
+      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
         isStraightLineModeRef.current = false
+
         const timeoutId = window.setTimeout(() => {
           if (isDrawingRef.current && pointsRef.current.length >= 2) {
             isStraightLineModeRef.current = true
+
+            // Snap to straight line
             const startPoint = pointsRef.current[0]
             const endPoint = pointsRef.current[pointsRef.current.length - 1]
             pointsRef.current = [startPoint, endPoint]
+
             const canvas = strokeCanvasRef.current
             const ctx = canvas?.getContext('2d')
             if (ctx && canvas) {
@@ -438,7 +396,7 @@ export default function EditablePage({
               drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
             }
           }
-        }, 1000)
+        }, 1000) // 1 second hold
         holdTimeoutRef.current = timeoutId
       }
 
@@ -465,10 +423,7 @@ export default function EditablePage({
     }
 
     const handleMove = (e: TouchEvent | MouseEvent) => {
-      if ((e as TouchEvent).touches && (e as TouchEvent).touches.length > 1) return
       const pos = getPos(e)
-
-      if (isShapeTool) return
 
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         if (e.cancelable) e.preventDefault()
@@ -476,18 +431,20 @@ export default function EditablePage({
         const dy = pos.y - dragStartPosRef.current.y
         dragOffsetRef.current = { x: dx, y: dy }
 
+        // Visual feedback: clear and redraw everything with offset selected strokes
         if (ctx) {
           ctx.clearRect(0, 0, width, height)
+          // Draw unselected strokes
           page.strokes.forEach(s => {
             if (!selectedStrokeIds.includes(s.id)) {
               drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
             }
           })
+          // Draw selected strokes with offset
           selectedStrokes.forEach(s => {
             const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
             drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
           })
-          page.shapes.forEach(shape => drawShape(ctx, shape))
         }
         return
       }
@@ -505,9 +462,12 @@ export default function EditablePage({
       }
 
       if (isStraightLineModeRef.current) {
+        // Update the end point of the straight line
         if (pointsRef.current.length >= 1) {
           const startPoint = pointsRef.current[0]
           pointsRef.current = [startPoint, pos]
+
+          // Redraw to show the updated line
           if (ctx) {
             ctx.clearRect(0, 0, width, height)
             drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
@@ -524,22 +484,29 @@ export default function EditablePage({
           const newlyErased = page.strokes
             .filter(s => !erasedStrokeIds.includes(s.id) && isStrokeHitByCircle(s, pos, radius))
             .map(s => s.id)
+
           if (newlyErased.length > 0) {
             setErasedStrokeIds(prev => [...prev, ...newlyErased])
           }
         }
 
+        // Reset hold detection on move if not yet snapped
         if (holdTimeoutRef.current) {
           window.clearTimeout(holdTimeoutRef.current)
           holdTimeoutRef.current = null
-          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
+
+          // Restart timeout
+          if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon' || activeTool === 'figures') {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
                 isStraightLineModeRef.current = true
                 const startPoint = pointsRef.current[0]
                 const endPoint = pointsRef.current[pointsRef.current.length - 1]
                 pointsRef.current = [startPoint, endPoint]
-                if (ctx) {
+
+                const canvas = strokeCanvasRef.current
+                const ctx = canvas?.getContext('2d')
+                if (ctx && canvas) {
                   ctx.clearRect(0, 0, width, height)
                   drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
                 }
@@ -559,11 +526,11 @@ export default function EditablePage({
       })
     }
 
-    const handleUp = (e: TouchEvent | MouseEvent) => {
-      if ((e as TouchEvent).touches && (e as TouchEvent).touches.length > 0) return
+    const handleUp = () => {
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         isDraggingSelectionRef.current = false
         const { x: dx, y: dy } = dragOffsetRef.current
+
         if (dx !== 0 || dy !== 0) {
           const updatedStrokes = page.strokes.map(s => {
             if (selectedStrokeIds.includes(s.id)) {
@@ -598,13 +565,17 @@ export default function EditablePage({
           laserStrokesRef.current.push({ points: [...pointsRef.current], timestamp: Date.now() })
         } else if (activeTool === 'lasso') {
           const lassoPolygon = [...pointsRef.current]
+
           let hasChanges = false
           const newStrokes: Stroke[] = []
           const newSelectedIds: string[] = []
+
           for (let i = 0; i < page.strokes.length; i++) {
             const s = page.strokes[i]
+
             if (s.tool !== 'eraser' && isStrokeInPolygon(s, lassoPolygon)) {
               const relevantErasers = page.strokes.slice(i + 1).filter(e => e.tool === 'eraser')
+
               if (relevantErasers.length > 0) {
                 const fragments = splitStroke(s, relevantErasers)
                 if (fragments.length === 1 && fragments[0] === s) {
@@ -623,6 +594,7 @@ export default function EditablePage({
               newStrokes.push(s)
             }
           }
+
           if (hasChanges) {
             if (onOperation) {
               onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes })
@@ -634,11 +606,20 @@ export default function EditablePage({
             setSelectedStrokeIds(newSelectedIds)
           }
         } else if (activeTool !== 'eraser') {
+          let finalPoints = [...pointsRef.current]
+
+          if (activeTool === 'figures') {
+            // const snappedPoints = generateCirclePoints(pointsRef.current)
+            // if (snappedPoints) {
+            //   finalPoints = snappedPoints
+            // }
+          }
+
           const stroke: Stroke = {
             id: crypto.randomUUID(),
-            points: [...pointsRef.current],
+            points: finalPoints,
             color: activeColor,
-            tool: activeTool,
+            tool: activeTool === 'figures' ? 'pen' : activeTool,
             size: activeSize
           }
           if (onOperation) {
@@ -653,7 +634,12 @@ export default function EditablePage({
         if (erasedStrokeIds.length > 0) {
           const newStrokes = page.strokes.filter(s => !erasedStrokeIds.includes(s.id))
           if (onOperation) {
-            onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes })
+            onOperation({
+              type: 'bulk-update',
+              pageId: page.id,
+              oldStrokes: page.strokes,
+              newStrokes
+            })
           } else {
             onUpdate({ ...page, strokes: newStrokes })
           }
@@ -663,31 +649,34 @@ export default function EditablePage({
       pointsRef.current = []
     }
 
-    const target = wrapperRef.current
-    if (!target) return
-    target.addEventListener('touchstart', handleDown, { passive: false })
-    target.addEventListener('touchmove', handleMove, { passive: false })
-    target.addEventListener('touchend', handleUp)
-    target.addEventListener('touchcancel', handleUp)
-    target.addEventListener('mousedown', handleDown)
+    canvas.addEventListener('touchstart', handleDown, { passive: false })
+    canvas.addEventListener('touchmove', handleMove, { passive: false })
+    canvas.addEventListener('touchend', handleUp)
+    canvas.addEventListener('touchcancel', handleUp)
+
+    canvas.addEventListener('mousedown', handleDown)
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
-    target.addEventListener('mousemove', handlePointerMove)
-    target.addEventListener('mouseleave', handlePointerLeave)
-    target.addEventListener('contextmenu', (e) => e.preventDefault())
+
+    canvas.addEventListener('mousemove', handlePointerMove)
+    canvas.addEventListener('mouseleave', handlePointerLeave)
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
     return () => {
-      target.removeEventListener('touchstart', handleDown)
-      target.removeEventListener('touchmove', handleMove)
-      target.removeEventListener('touchend', handleUp)
-      target.removeEventListener('touchcancel', handleUp)
-      target.removeEventListener('mousedown', handleDown)
+      canvas.removeEventListener('touchstart', handleDown)
+      canvas.removeEventListener('touchmove', handleMove)
+      canvas.removeEventListener('touchend', handleUp)
+      canvas.removeEventListener('touchcancel', handleUp)
+
+      canvas.removeEventListener('mousedown', handleDown)
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
-      target.removeEventListener('mousemove', handlePointerMove)
-      target.removeEventListener('mouseleave', handlePointerLeave)
+
+      canvas.removeEventListener('mousemove', handlePointerMove)
+      canvas.removeEventListener('mouseleave', handlePointerLeave)
     }
-  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes, erasedStrokeIds, onOperation, width, height, scale])
+  }, [activeTool, activeColor, activeSize, page, onUpdate, onInputTypeChange, selectedStrokeIds, selectionBox, selectedStrokes, erasedStrokeIds, onOperation, width, height])
 
   function handleTextFieldUpdate(id: string, text: string) {
     onUpdate({
@@ -703,52 +692,31 @@ export default function EditablePage({
     })
   }
 
-  function handleShapeUpdate(id: string, updates: Partial<Shape>) {
-    const oldShapes = [...(page.shapes || [])]
-    const newShapes = (page.shapes || []).map((s) => (s.id === id ? { ...s, ...updates } : s))
-    if (onOperation) {
-      onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
-    } else {
-      onUpdate({ ...page, shapes: newShapes })
-    }
-  }
-
-  function handleShapeDelete(id: string) {
-    const oldShapes = [...(page.shapes || [])]
-    const newShapes = (page.shapes || []).filter((s) => s.id !== id)
-    if (onOperation) {
-      onOperation({ type: 'bulk-update', pageId: page.id, oldStrokes: page.strokes, newStrokes: page.strokes, oldShapes, newShapes })
-    } else {
-      onUpdate({ ...page, shapes: newShapes })
-    }
-  }
-
   return (
-    <div style={{ width: width * scale, height: height * scale, overflow: 'hidden', margin: '0 auto' }}>
+    <div
+      style={{
+        width: width * scale,
+        height: height * scale,
+        overflow: 'hidden',
+        margin: '0 auto',
+      }}
+    >
       <div
-        ref={wrapperRef}
         style={{
           width: width,
           height: height,
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
           position: 'relative',
-          touchAction: 'pinch-zoom',
         }}
       >
-        <Paper template={page.template} width={width} height={height} pdfFileId={page.pdfFileId} pdfPageNumber={page.pdfPageNumber} />
-        {(page.shapes || []).map((s) => (
-          <ShapeComponent
-            key={s.id}
-            shape={s}
-            isSelected={s.id === selectedShapeId}
-            scale={scale}
-            onUpdate={handleShapeUpdate}
-            onDelete={handleShapeDelete}
-            onSelect={setSelectedShapeId}
-            pointerEvents={activeTool === 'select' ? 'auto' : 'none'}
-          />
-        ))}
+        <Paper
+          template={page.template}
+          width={width}
+          height={height}
+          pdfFileId={page.pdfFileId}
+          pdfPageNumber={page.pdfPageNumber}
+        />
         <canvas
           ref={strokeCanvasRef}
           width={width}
@@ -759,16 +727,23 @@ export default function EditablePage({
             top: 0,
             width: width,
             height: height,
-            touchAction: 'pinch-zoom',
-            pointerEvents: isShapeTool ? 'none' : 'auto',
-            cursor: activeTool === 'select' ? 'default' : activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
+            touchAction: 'manipulation',
+            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
           }}
         />
         <canvas
           ref={laserCanvasRef}
           width={width}
           height={height}
-          style={{ position: 'absolute', left: 0, top: 0, width: width, height: height, pointerEvents: 'none', zIndex: 5 }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: width,
+            height: height,
+            pointerEvents: 'none',
+            zIndex: 5,
+          }}
         />
         {activeTool === 'eraser' && (
           <div
@@ -777,8 +752,8 @@ export default function EditablePage({
               position: 'absolute',
               top: 0,
               left: 0,
-              width: 0,
-              height: 0,
+              width: 0, // Set dynamically
+              height: 0, // Set dynamically
               border: '2px solid rgba(0,0,0,0.3)',
               borderRadius: '50%',
               pointerEvents: 'none',
@@ -786,7 +761,7 @@ export default function EditablePage({
               display: 'none',
               backgroundColor: 'rgba(255, 255, 255, 0.2)',
               boxShadow: '0 0 0 1px rgba(255,255,255,0.8), inset 0 0 8px rgba(0,0,0,0.1)',
-              backdropFilter: 'contrast(1.1) brightness(1.1)',
+              backdropFilter: 'contrast(1.1) brightness(1.1)', // Subtle magnification look
             }}
           />
         )}

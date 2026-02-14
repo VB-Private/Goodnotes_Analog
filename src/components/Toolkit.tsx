@@ -55,7 +55,7 @@ export default function Toolkit({
     const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
     const colorInputRef = useRef<HTMLInputElement>(null)
-    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'shapes' | null>(null)
+    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'figures' | null>(null)
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -69,7 +69,6 @@ export default function Toolkit({
     }, [openPopup])
 
     const isPenLike = activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon'
-    const isShapeLike = activeTool === 'rect' || activeTool === 'circle' || activeTool === 'triangle'
 
     const handleToolClick = (tool: ToolType) => {
         if (tool === 'pen') {
@@ -86,11 +85,11 @@ export default function Toolkit({
                 onToolChange('eraser')
                 setOpenPopup(null)
             }
-        } else if (tool === 'rect' || tool === 'circle' || tool === 'triangle') {
-            if (isShapeLike) {
-                setOpenPopup(openPopup === 'shapes' ? null : 'shapes')
+        } else if (tool === 'figures') {
+            if (activeTool === 'figures') {
+                setOpenPopup(openPopup === 'figures' ? null : 'figures')
             } else {
-                onToolChange(tool)
+                onToolChange('figures')
                 setOpenPopup(null)
             }
         } else {
@@ -187,33 +186,11 @@ export default function Toolkit({
                 </ToolButton>
 
                 <ToolButton
-                    active={activeTool === 'select'}
-                    onClick={() => handleToolClick('select')}
-                    label="Select"
-                >
-                    <CursorIcon />
-                </ToolButton>
-
-                <ToolButton
-                    active={isShapeLike}
-                    onClick={() => handleToolClick('rect')} // Default to rect if category clicked
+                    active={activeTool === 'figures'}
+                    onClick={() => handleToolClick('figures')}
                     label="Figures"
                 >
-                    {activeTool === 'rect' ? (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                        </svg>
-                    ) : activeTool === 'circle' ? (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="9" />
-                        </svg>
-                    ) : activeTool === 'triangle' ? (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2L2 22h20L12 2z" />
-                        </svg>
-                    ) : (
-                        <ShapesIcon />
-                    )}
+                    <ShapesIcon />
                 </ToolButton>
 
                 <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 8px' }} />
@@ -427,7 +404,7 @@ export default function Toolkit({
                 )
             }
 
-            {openPopup === 'shapes' && (
+            {openPopup === 'figures' && (
                 <div
                     style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -444,46 +421,18 @@ export default function Toolkit({
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 8 }}>
-
-
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                         <SubToolButton
-                            active={activeTool === 'rect'}
+                            active={true}
                             activeColor={activeColor}
                             onClick={() => {
-                                onToolChange('rect')
+                                onToolChange('figures')
                                 setOpenPopup(null)
                             }}
-                            label="Rect"
+                            label="Circle Snapping"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeTool === 'rect' ? activeColor : 'currentColor'} strokeWidth="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                            </svg>
-                        </SubToolButton>
-                        <SubToolButton
-                            active={activeTool === 'circle'}
-                            activeColor={activeColor}
-                            onClick={() => {
-                                onToolChange('circle')
-                                setOpenPopup(null)
-                            }}
-                            label="Circle"
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeTool === 'circle' ? activeColor : 'currentColor'} strokeWidth="2">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
                                 <circle cx="12" cy="12" r="9" />
-                            </svg>
-                        </SubToolButton>
-                        <SubToolButton
-                            active={activeTool === 'triangle'}
-                            activeColor={activeColor}
-                            onClick={() => {
-                                onToolChange('triangle')
-                                setOpenPopup(null)
-                            }}
-                            label="Triangle"
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeTool === 'triangle' ? activeColor : 'currentColor'} strokeWidth="2">
-                                <path d="M12 2L2 22h20L12 2z" />
                             </svg>
                         </SubToolButton>
                     </div>
@@ -635,15 +584,6 @@ function ShapesIcon() {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="7" cy="7" r="5" />
             <rect x="12" y="12" width="10" height="10" rx="2" />
-        </svg>
-    )
-}
-
-function CursorIcon() {
-    return (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 3 11 20 14 14 20 11 3 3" />
-            <line x1="14" y1="14" x2="21" y2="21" />
         </svg>
     )
 }

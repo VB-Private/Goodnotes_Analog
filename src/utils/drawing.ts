@@ -1,5 +1,5 @@
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Stroke, StrokePoint, ToolType, Shape } from '../types'
+import type { Stroke, StrokePoint, ToolType } from '../types'
 
 export function getCanvasPoint(
   evt: { clientX: number; clientY: number; pressure?: number },
@@ -88,66 +88,19 @@ export function drawStrokePath(
   ctx.globalCompositeOperation = 'source-over'
 }
 
-export function drawShape(
-  ctx: CanvasRenderingContext2D,
-  shape: Shape
-) {
-  ctx.save()
-  ctx.strokeStyle = shape.color
-  ctx.lineWidth = shape.size
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-
-  if (shape.type === 'rect') {
-    if (shape.isFilled) {
-      ctx.fillStyle = `${shape.color}40`
-      ctx.fillRect(shape.x, shape.y, shape.width, shape.height)
-    }
-    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height)
-  } else if (shape.type === 'circle') {
-    ctx.beginPath()
-    ctx.ellipse(
-      shape.x + shape.width / 2,
-      shape.y + shape.height / 2,
-      Math.abs(shape.width / 2),
-      Math.abs(shape.height / 2),
-      0, 0, 2 * Math.PI
-    )
-    if (shape.isFilled) {
-      ctx.fillStyle = `${shape.color}40`
-      ctx.fill()
-    }
-    ctx.stroke()
-  } else if (shape.type === 'triangle') {
-    ctx.beginPath()
-    ctx.moveTo(shape.x + shape.width / 2, shape.y)
-    ctx.lineTo(shape.x + shape.width, shape.y + shape.height)
-    ctx.lineTo(shape.x, shape.y + shape.height)
-    ctx.closePath()
-    if (shape.isFilled) {
-      ctx.fillStyle = `${shape.color}40`
-      ctx.fill()
-    }
-    ctx.stroke()
-  }
-  ctx.restore()
-}
-
 export function drawAllStrokes(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
   currentPoints: StrokePoint[] | null,
-  currentOptions?: DrawOptions,
-  shapes: Shape[] = []
+  currentOptions?: DrawOptions
 ) {
   ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
 
+  // We need to use a temporary canvas for erasure to work correctly if we want it to "cut through" all strokes
+  // But since we clear and redraw everything, we can just use destination-out on the main canvas
+
   for (const s of strokes) {
     drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
-  }
-
-  for (const shape of shapes) {
-    drawShape(ctx, shape)
   }
 
   if (currentPoints && currentPoints.length >= 2 && currentOptions) {
