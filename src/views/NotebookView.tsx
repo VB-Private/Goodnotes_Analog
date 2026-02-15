@@ -1109,6 +1109,8 @@ export default function NotebookView() {
             activeTool={activeTool}
             activeColor={activeColor}
             activeSize={activeSize}
+            selectedShapeType={selectedShapeType}
+            onToolChange={setActiveTool}
             onActionsUpdate={setPdfActions}
           />
         )}

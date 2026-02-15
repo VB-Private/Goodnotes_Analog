@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Loader from './Loader'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
-import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Shape, Operation } from '../types'
+import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Shape, Operation, ShapeType } from '../types'
 import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
 import { exportAnnotatedPDF } from '../utils/export'
 import EditablePage from './EditablePage'
@@ -12,6 +12,8 @@ interface PdfFocusedViewProps {
     activeTool: ToolType
     activeColor: string
     activeSize: number
+    selectedShapeType?: ShapeType
+    onToolChange?: (tool: ToolType) => void
     onActionsUpdate?: (actions: { undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean }) => void
 }
 
@@ -21,6 +23,8 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
     activeTool,
     activeColor,
     activeSize,
+    selectedShapeType,
+    onToolChange,
     onActionsUpdate
 }) => {
     const [pdfFile, setPdfFile] = useState<PDFFile | null>(null)
@@ -301,8 +305,10 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                             activeTool={activeTool}
                             activeColor={activeColor}
                             activeSize={activeSize}
+                            selectedShapeType={selectedShapeType}
                             onUpdate={(updated) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields, updated.shapes)}
                             onOperation={handleOperation}
+                            onToolChange={onToolChange}
                             onInputTypeChange={() => { }}
                         />
                     </div>
