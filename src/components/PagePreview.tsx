@@ -62,6 +62,51 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                         opacity={s.tool === 'pencil' ? 0.6 : s.tool === 'crayon' ? 0.4 : 1}
                     />
                 ))}
+                {page.shapes?.map((shape) => {
+                    if (shape.type === 'circle') {
+                        return (
+                            <ellipse
+                                key={shape.id}
+                                cx={shape.x + shape.width / 2}
+                                cy={shape.y + shape.height / 2}
+                                rx={Math.abs(shape.width / 2)}
+                                ry={Math.abs(shape.height / 2)}
+                                fill="none"
+                                stroke={shape.color}
+                                strokeWidth={shape.strokeWidth}
+                            />
+                        )
+                    }
+                    if (shape.type === 'square') {
+                        return (
+                            <rect
+                                key={shape.id}
+                                x={shape.x}
+                                y={shape.y}
+                                width={shape.width}
+                                height={shape.height}
+                                fill="none"
+                                stroke={shape.color}
+                                strokeWidth={shape.strokeWidth}
+                            />
+                        )
+                    }
+                    if (shape.type === 'triangle') {
+                        const p1 = `${shape.x + shape.width / 2},${shape.y}`
+                        const p2 = `${shape.x + shape.width},${shape.y + shape.height}`
+                        const p3 = `${shape.x},${shape.y + shape.height}`
+                        return (
+                            <polygon
+                                key={shape.id}
+                                points={`${p1} ${p2} ${p3}`}
+                                fill="none"
+                                stroke={shape.color}
+                                strokeWidth={shape.strokeWidth}
+                            />
+                        )
+                    }
+                    return null
+                })}
             </svg>
         </div>
     )

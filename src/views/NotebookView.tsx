@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile, getPDFAnnotation } from '../storage/db'
-import type { Notebook, Page, PageTemplate, ToolType, PDFFile, Operation, Tab, PDFAnnotation } from '../types'
+import type { Notebook, Page, PageTemplate, ToolType, ShapeType, PDFFile, Operation, Tab, PDFAnnotation } from '../types'
 import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
 import EditablePage from '../components/EditablePage'
@@ -75,6 +75,7 @@ export default function NotebookView() {
   const [activeTabId, setActiveTabId] = useState<string>('notes')
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([])
+  const [selectedShapeType, setSelectedShapeType] = useState<ShapeType>('circle')
   const hasAttemptedInitialScroll = useRef(false)
 
   useEffect(() => {
@@ -187,16 +188,16 @@ export default function NotebookView() {
     hasAttemptedInitialScroll.current = false
   }, [activeTabId])
 
-  function handlePageUpdate(updated: Page) {
+  function handlePageUpdate(updatedPage: Page) {
     // Save last edited page
-    if (notebook) {
-      const updatedNb = { ...notebook, lastPageId: updated.id }
-      updateNotebook(updatedNb)
-      setNotebook(updatedNb)
-    }
+    if (!notebook) return
+    const updatedNb = { ...notebook, lastPageId: updatedPage.id }
+    updateNotebook(updatedNb)
+    setNotebook(updatedNb)
 
-    updatePage(updated)
-    setPages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    const updatedPages = pages.map(p => p.id === updatedPage.id ? updatedPage : p)
+    setPages(updatedPages)
+    updatePage(updatedPage)
   }
 
   function handleOperation(op: Operation) {
@@ -301,6 +302,7 @@ export default function NotebookView() {
       template,
       strokes: [],
       textFields: [],
+      shapes: [],
       createdAt: Date.now(),
     }
     await createPage(page)
@@ -431,7 +433,9 @@ export default function NotebookView() {
         oldStrokes: pageToClear.strokes,
         newStrokes: [],
         oldTextFields: pageToClear.textFields,
-        newTextFields: []
+        newTextFields: [],
+        oldShapes: pageToClear.shapes,
+        newShapes: []
       })
     }
     setActiveMenuPageId(null)
@@ -823,6 +827,8 @@ export default function NotebookView() {
         onRedo={activeTabId !== 'notes' && pdfActions ? pdfActions.redo : handleRedo}
         canUndo={activeTabId !== 'notes' && pdfActions ? pdfActions.canUndo : undoStack.length > 0}
         canRedo={activeTabId !== 'notes' && pdfActions ? pdfActions.canRedo : redoStack.length > 0}
+        selectedShapeType={selectedShapeType}
+        onShapeTypeChange={setSelectedShapeType}
       />
 
       {/* Main Content Area */}
@@ -1080,8 +1086,10 @@ export default function NotebookView() {
                         activeTool={activeTool}
                         activeColor={activeColor}
                         activeSize={activeSize}
+                        selectedShapeType={selectedShapeType}
                         onUpdate={handlePageUpdate}
                         onOperation={handleOperation}
+                        onToolChange={setActiveTool}
                         onInputTypeChange={() => { }} // Dummy as it was removed
                       />
                     </div>

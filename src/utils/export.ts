@@ -1,6 +1,6 @@
 import { PDFDocument, rgb } from 'pdf-lib'
 import download from 'downloadjs'
-import type { Notebook, Page, Stroke, TextField, PDFFile } from '../types'
+import type { Notebook, Page, Stroke, TextField, Shape, PDFFile } from '../types'
 import { getPDFFile } from '../storage/db'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import { splitStroke } from './geometry'
@@ -116,7 +116,7 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
  */
 function drawAnnotationsOnPage(
     pdfPage: any,
-    pageContent: { strokes: Stroke[]; textFields?: TextField[] },
+    pageContent: { strokes: Stroke[]; textFields?: TextField[]; shapes?: Shape[] },
     scale: { x: number; y: number } = { x: 1, y: 1 }
 ) {
     const { height } = pdfPage.getSize()
@@ -181,6 +181,42 @@ function drawAnnotationsOnPage(
             size: tf.fontSize * scaleY,
             color: rgb(color.r, color.g, color.b),
         })
+    }
+
+    // --------------------------------------------------------------------
+    //  Draw Shapes
+    // --------------------------------------------------------------------
+    for (const shape of pageContent.shapes || []) {
+        const color = hexToRgb(shape.color)
+        const { type, x, y, width: w, height: h, strokeWidth } = shape
+
+        if (type === 'circle') {
+            pdfPage.drawEllipse({
+                x: (x + w / 2) * scaleX,
+                y: height - (y + h / 2) * scaleY,
+                xScale: (w / 2) * scaleX,
+                yScale: (h / 2) * scaleY,
+                borderWidth: strokeWidth * scaleX,
+                borderColor: rgb(color.r, color.g, color.b),
+            })
+        } else if (type === 'square') {
+            pdfPage.drawRectangle({
+                x: x * scaleX,
+                y: height - (y + h) * scaleY,
+                width: w * scaleX,
+                height: h * scaleY,
+                borderWidth: strokeWidth * scaleX,
+                borderColor: rgb(color.r, color.g, color.b),
+            })
+        } else if (type === 'triangle') {
+            const p1 = { x: (x + w / 2) * scaleX, y: height - y * scaleY }
+            const p2 = { x: (x + w) * scaleX, y: height - (y + h) * scaleY }
+            const p3 = { x: x * scaleX, y: height - (y + h) * scaleY }
+
+            pdfPage.drawLine({ start: p1, end: p2, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
+            pdfPage.drawLine({ start: p2, end: p3, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
+            pdfPage.drawLine({ start: p3, end: p1, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
+        }
     }
 }
 
@@ -264,7 +300,7 @@ export async function exportNotebookToPDF(notebook: Notebook, pages: Page[]) {
 
 export async function exportAnnotatedPDF(
     pdfFile: PDFFile,
-    annotationsMap: Record<number, { strokes: Stroke[]; textFields: TextField[] }>
+    annotationsMap: Record<number, { strokes: Stroke[]; textFields: TextField[]; shapes?: Shape[] }>
 ) {
     const pdfBytes = new Uint8Array(await pdfFile.blob.arrayBuffer())
     const sourceDoc = await PDFDocument.load(pdfBytes)

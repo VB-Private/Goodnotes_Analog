@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react'
-import type { ToolType } from '../types'
+import type { ToolType, ShapeType } from '../types'
 import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface ToolkitProps {
@@ -13,6 +13,8 @@ interface ToolkitProps {
     onRedo?: () => void
     canUndo?: boolean
     canRedo?: boolean
+    selectedShapeType?: ShapeType
+    onShapeTypeChange?: (type: ShapeType) => void
 }
 
 const COLORS = [
@@ -50,12 +52,14 @@ export default function Toolkit({
     onUndo,
     onRedo,
     canUndo,
-    canRedo
+    canRedo,
+    selectedShapeType = 'circle',
+    onShapeTypeChange
 }: ToolkitProps) {
     const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
     const colorInputRef = useRef<HTMLInputElement>(null)
-    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'figures' | null>(null)
+    const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'figures' | 'select' | null>(null)
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -83,6 +87,13 @@ export default function Toolkit({
                 setOpenPopup(openPopup === 'eraser' ? null : 'eraser')
             } else {
                 onToolChange('eraser')
+                setOpenPopup(null)
+            }
+        } else if (tool === 'figures') {
+            if (activeTool === 'figures') {
+                setOpenPopup(openPopup === 'figures' ? null : 'figures')
+            } else {
+                onToolChange('figures')
                 setOpenPopup(null)
             }
         } else {
@@ -179,11 +190,19 @@ export default function Toolkit({
                 </ToolButton>
 
                 <ToolButton
+                    active={activeTool === 'select'}
+                    onClick={() => handleToolClick('select')}
+                    label="Select"
+                >
+                    <SelectCursorIcon />
+                </ToolButton>
+
+                <ToolButton
                     active={activeTool === 'figures'}
                     onClick={() => handleToolClick('figures')}
                     label="Figures"
                 >
-                    <ShapesIcon />
+                    <ShapesIcon type={selectedTypeToIcon(selectedShapeType)} />
                 </ToolButton>
 
                 <div style={{ width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.1)', margin: '0 8px' }} />
@@ -397,9 +416,75 @@ export default function Toolkit({
                 )
             }
 
-
+            {openPopup === 'figures' && (
+                <div
+                    style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderRadius: 20,
+                        padding: 16,
+                        boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                        border: '1px solid rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        pointerEvents: 'auto',
+                        minWidth: 180,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                        <SubToolButton
+                            active={selectedShapeType === 'circle'}
+                            activeColor={activeColor}
+                            onClick={() => {
+                                onShapeTypeChange?.('circle')
+                                onToolChange('figures')
+                                setOpenPopup(null)
+                            }}
+                            label="Circle"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                                <circle cx="12" cy="12" r="9" />
+                            </svg>
+                        </SubToolButton>
+                        <SubToolButton
+                            active={selectedShapeType === 'square'}
+                            activeColor={activeColor}
+                            onClick={() => {
+                                onShapeTypeChange?.('square')
+                                onToolChange('figures')
+                                setOpenPopup(null)
+                            }}
+                            label="Square"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                            </svg>
+                        </SubToolButton>
+                        <SubToolButton
+                            active={selectedShapeType === 'triangle'}
+                            activeColor={activeColor}
+                            onClick={() => {
+                                onShapeTypeChange?.('triangle')
+                                onToolChange('figures')
+                                setOpenPopup(null)
+                            }}
+                            label="Triangle"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                                <path d="M12 4L20 20H4L12 4Z" />
+                            </svg>
+                        </SubToolButton>
+                    </div>
+                </div>
+            )}
         </div >
     )
+}
+
+function selectedTypeToIcon(type: ShapeType): 'circle' | 'square' | 'triangle' {
+    return type
 }
 
 function ToolButton({ children, active, onClick, label, disabled, activeColor }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, disabled?: boolean, activeColor?: string }) {
@@ -539,11 +624,33 @@ function LassoIcon() {
     )
 }
 
-function ShapesIcon() {
+function ShapesIcon({ type = 'square' }: { type?: ShapeType }) {
+    if (type === 'circle') {
+        return (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="8" />
+            </svg>
+        )
+    }
+    if (type === 'triangle') {
+        return (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4L20 20H4L12 4Z" />
+            </svg>
+        )
+    }
     return (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="7" cy="7" r="5" />
-            <rect x="12" y="12" width="10" height="10" rx="2" />
+            <rect x="5" y="5" width="14" height="14" rx="2" />
+        </svg>
+    )
+}
+
+function SelectCursorIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+            <path d="M13 13l6 6" />
         </svg>
     )
 }

@@ -1,5 +1,5 @@
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Stroke, StrokePoint, ToolType } from '../types'
+import type { Stroke, StrokePoint, ToolType, Shape } from '../types'
 
 export function getCanvasPoint(
   evt: { clientX: number; clientY: number; pressure?: number },
@@ -88,21 +88,47 @@ export function drawStrokePath(
   ctx.globalCompositeOperation = 'source-over'
 }
 
+export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
+  const { type, x, y, width, height, color, strokeWidth } = shape
+  ctx.strokeStyle = color
+  ctx.lineWidth = strokeWidth
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+
+  if (type === 'circle') {
+    ctx.ellipse(x + width / 2, y + height / 2, Math.abs(width / 2), Math.abs(height / 2), 0, 0, Math.PI * 2)
+  } else if (type === 'square') {
+    ctx.rect(x, y, width, height)
+  } else if (type === 'triangle') {
+    ctx.moveTo(x + width / 2, y)
+    ctx.lineTo(x + width, y + height)
+    ctx.lineTo(x, y + height)
+    ctx.closePath()
+  }
+  ctx.stroke()
+}
+
 export function drawAllStrokes(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
   currentPoints: StrokePoint[] | null,
-  currentOptions?: DrawOptions
+  currentOptions?: DrawOptions,
+  shapes: Shape[] = []
 ) {
   ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
 
-  // We need to use a temporary canvas for erasure to work correctly if we want it to "cut through" all strokes
-  // But since we clear and redraw everything, we can just use destination-out on the main canvas
-
+  // Draw saved strokes
   for (const s of strokes) {
     drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
   }
 
+  // Draw saved shapes
+  for (const shape of shapes) {
+    drawShape(ctx, shape)
+  }
+
+  // Draw current stroke being drawn
   if (currentPoints && currentPoints.length >= 2 && currentOptions) {
     drawStrokePath(ctx, currentPoints, currentOptions)
   }
