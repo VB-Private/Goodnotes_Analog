@@ -59,7 +59,8 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                                 cy={shape.y + shape.height / 2}
                                 rx={Math.abs(shape.width / 2)}
                                 ry={Math.abs(shape.height / 2)}
-                                fill="none"
+                                fill={shape.fillColor || "none"}
+                                fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
                             />
@@ -73,7 +74,8 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                                 y={shape.y}
                                 width={shape.width}
                                 height={shape.height}
-                                fill="none"
+                                fill={shape.fillColor || "none"}
+                                fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
                             />
@@ -87,7 +89,8 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                             <polygon
                                 key={shape.id}
                                 points={`${p1} ${p2} ${p3}`}
-                                fill="none"
+                                fill={shape.fillColor || "none"}
+                                fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
                             />

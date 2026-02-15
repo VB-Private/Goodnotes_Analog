@@ -188,8 +188,50 @@ function drawAnnotationsOnPage(
     // --------------------------------------------------------------------
     for (const shape of pageContent.shapes || []) {
         const color = hexToRgb(shape.color)
+        const fillColor = shape.fillColor ? hexToRgb(shape.fillColor) : undefined
         const { type, x, y, width: w, height: h, strokeWidth } = shape
 
+        // Draw Fill
+        if (fillColor) {
+            const fillRgb = rgb(fillColor.r, fillColor.g, fillColor.b)
+            if (type === 'circle') {
+                pdfPage.drawEllipse({
+                    x: (x + w / 2) * scaleX,
+                    y: height - (y + h / 2) * scaleY,
+                    xScale: (w / 2) * scaleX,
+                    yScale: (h / 2) * scaleY,
+                    borderWidth: 0,
+                    color: fillRgb,
+                    opacity: 0.25
+                })
+            } else if (type === 'square') {
+                pdfPage.drawRectangle({
+                    x: x * scaleX,
+                    y: height - (y + h) * scaleY,
+                    width: w * scaleX,
+                    height: h * scaleY,
+                    borderWidth: 0,
+                    color: fillRgb,
+                    opacity: 0.25
+                })
+            } else if (type === 'triangle') {
+                const p1x = (x + w / 2) * scaleX
+                const p1y = height - y * scaleY
+                const p2x = (x + w) * scaleX
+                const p2y = height - (y + h) * scaleY
+                const p3x = x * scaleX
+                const p3y = height - (y + h) * scaleY
+
+                const path = `M ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y} Z`
+                pdfPage.drawSvgPath(path, {
+                    color: fillRgb,
+                    opacity: 0.25,
+                    borderWidth: 0
+                })
+            }
+        }
+
+        // Draw Stroke
         if (type === 'circle') {
             pdfPage.drawEllipse({
                 x: (x + w / 2) * scaleX,
@@ -198,6 +240,7 @@ function drawAnnotationsOnPage(
                 yScale: (h / 2) * scaleY,
                 borderWidth: strokeWidth * scaleX,
                 borderColor: rgb(color.r, color.g, color.b),
+                opacity: 1 // Stroke is fully opaque
             })
         } else if (type === 'square') {
             pdfPage.drawRectangle({
@@ -207,15 +250,16 @@ function drawAnnotationsOnPage(
                 height: h * scaleY,
                 borderWidth: strokeWidth * scaleX,
                 borderColor: rgb(color.r, color.g, color.b),
+                opacity: 1
             })
         } else if (type === 'triangle') {
             const p1 = { x: (x + w / 2) * scaleX, y: height - y * scaleY }
             const p2 = { x: (x + w) * scaleX, y: height - (y + h) * scaleY }
             const p3 = { x: x * scaleX, y: height - (y + h) * scaleY }
 
-            pdfPage.drawLine({ start: p1, end: p2, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
-            pdfPage.drawLine({ start: p2, end: p3, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
-            pdfPage.drawLine({ start: p3, end: p1, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b) })
+            pdfPage.drawLine({ start: p1, end: p2, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b), opacity: 1 })
+            pdfPage.drawLine({ start: p2, end: p3, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b), opacity: 1 })
+            pdfPage.drawLine({ start: p3, end: p1, thickness: strokeWidth * scaleX, color: rgb(color.r, color.g, color.b), opacity: 1 })
         }
     }
 }

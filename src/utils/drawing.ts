@@ -89,11 +89,8 @@ export function drawStrokePath(
 }
 
 export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
-  const { type, x, y, width, height, color, strokeWidth } = shape
-  ctx.strokeStyle = color
-  ctx.lineWidth = strokeWidth
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
+  const { type, x, y, width, height, color, strokeWidth, fillColor } = shape
+
   ctx.beginPath()
 
   if (type === 'circle') {
@@ -106,6 +103,19 @@ export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
     ctx.lineTo(x, y + height)
     ctx.closePath()
   }
+
+  if (fillColor) {
+    ctx.save()
+    ctx.globalAlpha = 0.25
+    ctx.fillStyle = fillColor
+    ctx.fill()
+    ctx.restore()
+  }
+
+  ctx.strokeStyle = color
+  ctx.lineWidth = strokeWidth
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
   ctx.stroke()
 }
 

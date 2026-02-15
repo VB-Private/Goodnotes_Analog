@@ -13,6 +13,7 @@ interface PdfFocusedViewProps {
     activeColor: string
     activeSize: number
     selectedShapeType?: ShapeType
+    isShapeFilled?: boolean
     onToolChange?: (tool: ToolType) => void
     onActionsUpdate?: (actions: { undo: () => void, redo: () => void, canUndo: boolean, canRedo: boolean }) => void
 }
@@ -24,6 +25,7 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
     activeColor,
     activeSize,
     selectedShapeType,
+    isShapeFilled,
     onToolChange,
     onActionsUpdate
 }) => {
@@ -306,7 +308,8 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                             activeColor={activeColor}
                             activeSize={activeSize}
                             selectedShapeType={selectedShapeType}
-                            onUpdate={(updated) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields, updated.shapes)}
+                            isShapeFilled={isShapeFilled}
+                            onUpdate={(updated: { strokes: Stroke[], textFields: TextField[], shapes: Shape[] }) => handleUpdateAnnotation(pageNumber, updated.strokes, updated.textFields, updated.shapes)}
                             onOperation={handleOperation}
                             onToolChange={onToolChange}
                             onInputTypeChange={() => { }}

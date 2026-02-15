@@ -46,15 +46,20 @@ export default function NotebookView() {
     const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
     return saved ? JSON.parse(saved).eraserSize : 40
   })
+  const [isShapeFilled, setIsShapeFilled] = useState(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved && JSON.parse(saved).isShapeFilled !== undefined ? JSON.parse(saved).isShapeFilled : true
+  })
 
   useEffect(() => {
     localStorage.setItem(TOOLKIT_STORAGE_KEY, JSON.stringify({
       activeTool,
       activeColor,
       penSize,
-      eraserSize
+      eraserSize,
+      isShapeFilled
     }))
-  }, [activeTool, activeColor, penSize, eraserSize])
+  }, [activeTool, activeColor, penSize, eraserSize, isShapeFilled])
 
   const activeSize = activeTool === 'eraser' ? eraserSize : penSize
   const onSizeChange = (size: number) => {
@@ -832,6 +837,8 @@ export default function NotebookView() {
         canRedo={activeTabId !== 'notes' && pdfActions ? pdfActions.canRedo : redoStack.length > 0}
         selectedShapeType={selectedShapeType}
         onShapeTypeChange={setSelectedShapeType}
+        isShapeFilled={isShapeFilled}
+        onFillChange={setIsShapeFilled}
       />
 
       {/* Main Content Area */}
@@ -1093,6 +1100,7 @@ export default function NotebookView() {
                         onUpdate={handlePageUpdate}
                         onOperation={handleOperation}
                         onToolChange={setActiveTool}
+                        isShapeFilled={isShapeFilled}
                         onInputTypeChange={() => { }} // Dummy as it was removed
                       />
                     </div>
@@ -1110,6 +1118,7 @@ export default function NotebookView() {
             activeColor={activeColor}
             activeSize={activeSize}
             selectedShapeType={selectedShapeType}
+            isShapeFilled={isShapeFilled}
             onToolChange={setActiveTool}
             onActionsUpdate={setPdfActions}
           />

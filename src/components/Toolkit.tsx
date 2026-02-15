@@ -15,6 +15,8 @@ interface ToolkitProps {
     canRedo?: boolean
     selectedShapeType?: ShapeType
     onShapeTypeChange?: (type: ShapeType) => void
+    isShapeFilled?: boolean
+    onFillChange?: (filled: boolean) => void
 }
 
 const COLORS = [
@@ -54,7 +56,9 @@ export default function Toolkit({
     canUndo,
     canRedo,
     selectedShapeType = 'circle',
-    onShapeTypeChange
+    onShapeTypeChange,
+    isShapeFilled = true,
+    onFillChange
 }: ToolkitProps) {
     const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
@@ -440,11 +444,10 @@ export default function Toolkit({
                             onClick={() => {
                                 onShapeTypeChange?.('circle')
                                 onToolChange('figures')
-                                setOpenPopup(null)
                             }}
                             label="Circle"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isShapeFilled ? activeColor : 'none'} stroke={activeColor} strokeWidth="2">
                                 <circle cx="12" cy="12" r="9" />
                             </svg>
                         </SubToolButton>
@@ -454,11 +457,10 @@ export default function Toolkit({
                             onClick={() => {
                                 onShapeTypeChange?.('square')
                                 onToolChange('figures')
-                                setOpenPopup(null)
                             }}
                             label="Square"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isShapeFilled ? activeColor : 'none'} stroke={activeColor} strokeWidth="2">
                                 <rect x="4" y="4" width="16" height="16" rx="2" />
                             </svg>
                         </SubToolButton>
@@ -468,14 +470,45 @@ export default function Toolkit({
                             onClick={() => {
                                 onShapeTypeChange?.('triangle')
                                 onToolChange('figures')
-                                setOpenPopup(null)
                             }}
                             label="Triangle"
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={activeColor} strokeWidth="2">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isShapeFilled ? activeColor : 'none'} stroke={activeColor} strokeWidth="2">
                                 <path d="M12 4L20 20H4L12 4Z" />
                             </svg>
                         </SubToolButton>
+                    </div>
+
+                    <div style={{ padding: '0 4px' }}>
+                        <button
+                            onClick={() => onFillChange?.(!isShapeFilled)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                background: isShapeFilled ? (activeColor || '#007AFF') : '#f5f5f7',
+                                color: isShapeFilled ? '#fff' : '#555',
+                                border: 'none',
+                                borderRadius: 12,
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            <span style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: 4,
+                                border: '2px solid currentColor',
+                                background: isShapeFilled ? 'currentColor' : 'transparent',
+                                display: 'inline-block'
+                            }} />
+                            Fill Shape
+                        </button>
                     </div>
                 </div>
             )}

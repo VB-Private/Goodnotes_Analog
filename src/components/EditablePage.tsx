@@ -17,6 +17,7 @@ interface EditablePageProps {
   onOperation?: (op: Operation) => void
   onToolChange?: (tool: ToolType) => void
   onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
+  isShapeFilled?: boolean
   width?: number
   height?: number
 }
@@ -28,6 +29,7 @@ export default function EditablePage({
   activeColor,
   activeSize,
   selectedShapeType = 'circle',
+  isShapeFilled = true,
   onUpdate,
   onOperation,
   onToolChange,
@@ -58,10 +60,10 @@ export default function EditablePage({
   const oldShapesRef = useRef<Shape[]>([])
 
   // Store latest state in a ref to avoid re-binding event listeners frequently
-  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange })
+  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange })
   useEffect(() => {
-    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange }
-  }, [page, activeTool, activeColor, activeSize, selectedShapeType, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange])
+    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange }
+  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange])
 
   const selectedStrokes = useMemo(() =>
     page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
@@ -403,6 +405,7 @@ export default function EditablePage({
           width: 100,
           height: 100,
           color: stateRef.current.activeColor,
+          fillColor: stateRef.current.isShapeFilled ? stateRef.current.activeColor : undefined,
           strokeWidth: stateRef.current.activeSize
         }
         stateRef.current.onUpdate({
