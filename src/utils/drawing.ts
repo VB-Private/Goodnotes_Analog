@@ -118,14 +118,14 @@ export function drawAllStrokes(
 ) {
   ctx.clearRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
 
-  // Draw saved strokes
-  for (const s of strokes) {
-    drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
-  }
-
   // Draw saved shapes
   for (const shape of shapes) {
     drawShape(ctx, shape)
+  }
+
+  // Draw saved strokes
+  for (const s of strokes) {
+    drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
   }
 
   // Draw current stroke being drawn

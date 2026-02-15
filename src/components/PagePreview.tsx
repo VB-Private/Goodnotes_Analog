@@ -50,18 +50,6 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                 }}
                 shapeRendering="optimizeSpeed"
             >
-                {page.strokes.map((s) => (
-                    <path
-                        key={s.id}
-                        d={getPathData(s)}
-                        fill="none"
-                        stroke={s.color}
-                        strokeWidth={s.size}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity={s.tool === 'pencil' ? 0.6 : s.tool === 'crayon' ? 0.4 : 1}
-                    />
-                ))}
                 {page.shapes?.map((shape) => {
                     if (shape.type === 'circle') {
                         return (
@@ -107,6 +95,18 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                     }
                     return null
                 })}
+                {page.strokes.map((s) => (
+                    <path
+                        key={s.id}
+                        d={getPathData(s)}
+                        fill="none"
+                        stroke={s.color}
+                        strokeWidth={s.size}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity={s.tool === 'pencil' ? 0.6 : s.tool === 'crayon' ? 0.4 : 1}
+                    />
+                ))}
             </svg>
         </div>
     )

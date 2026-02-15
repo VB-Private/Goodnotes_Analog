@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, ShapeType, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
+import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
 import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
@@ -121,6 +121,28 @@ export default function EditablePage({
           ctx.fill()
           ctx.stroke()
         })
+
+        // Draw delete handle (small X)
+        const deleteX = shape.x + shape.width + 20
+        const deleteY = shape.y - 20
+        const deleteSize = 20 / scale
+
+        ctx.beginPath()
+        ctx.fillStyle = '#FF3B30'
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2
+        ctx.arc(deleteX, deleteY, deleteSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Draw X
+        const xLen = (deleteSize / 2) * 0.5
+        ctx.beginPath()
+        ctx.moveTo(deleteX - xLen, deleteY - xLen)
+        ctx.lineTo(deleteX + xLen, deleteY + xLen)
+        ctx.moveTo(deleteX + xLen, deleteY - xLen)
+        ctx.lineTo(deleteX - xLen, deleteY + xLen)
+        ctx.stroke()
+
         ctx.restore()
       }
     }
@@ -300,7 +322,7 @@ export default function EditablePage({
       const l = points.length - 1
       if (l < 1) return
 
-      ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(255,255,255,1)' : activeColor
+      ctx.strokeStyle = stateRef.current.activeTool === 'eraser' ? 'rgba(255,255,255,1)' : stateRef.current.activeColor
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
 
@@ -415,6 +437,32 @@ export default function EditablePage({
                 return
               }
             }
+
+            // Check for delete handle
+            const deleteX = shape.x + shape.width + 20
+            const deleteY = shape.y - 20
+            const deleteSize = 30 / scale // hit area
+
+            if (Math.hypot(pos.x - deleteX, pos.y - deleteY) < deleteSize / 2) {
+              const newShapes = (stateRef.current.page.shapes || []).filter(s => s.id !== shape.id)
+
+              if (stateRef.current.onOperation) {
+                stateRef.current.onOperation({
+                  type: 'bulk-update',
+                  pageId: stateRef.current.page.id,
+                  oldStrokes: stateRef.current.page.strokes,
+                  newStrokes: stateRef.current.page.strokes,
+                  oldShapes: stateRef.current.page.shapes || [],
+                  newShapes
+                })
+              } else {
+                stateRef.current.onUpdate({ ...stateRef.current.page, shapes: newShapes })
+              }
+
+              setSelectedShapeId(null)
+              if (e.cancelable) e.preventDefault()
+              return
+            }
           }
         }
 
@@ -520,6 +568,9 @@ export default function EditablePage({
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
       const pos = getPos(e)
+      const canvas = strokeCanvasRef.current
+
+      // Eraser cursor logic
       if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
         const diameter = Math.log(pos.pressure + 1) * (stateRef.current.activeSize * 2)
         cursorRef.current.style.display = 'block'
@@ -528,6 +579,67 @@ export default function EditablePage({
         cursorRef.current.style.marginLeft = `${-diameter / 2}px`
         cursorRef.current.style.marginTop = `${-diameter / 2}px`
         cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      }
+
+      if (!canvas) return
+
+      // Dynamic cursor for Select Tool
+      if (stateRef.current.activeTool === 'select') {
+        let cursor = 'default'
+
+        // 1. Check selected shape handles/delete button
+        if (stateRef.current.selectedShapeId) {
+          const shape = stateRef.current.page.shapes?.find(s => s.id === stateRef.current.selectedShapeId)
+          if (shape) {
+            // Check delete handle
+            const deleteX = shape.x + shape.width + 20
+            const deleteY = shape.y - 20
+            const deleteSize = 30 / scale
+            if (Math.hypot(pos.x - deleteX, pos.y - deleteY) < deleteSize / 2) {
+              cursor = 'pointer'
+            } else {
+              // Check resize handles
+              const handleSize = 25 / scale
+              const handles = {
+                tl: { x: shape.x, y: shape.y },
+                tr: { x: shape.x + shape.width, y: shape.y },
+                bl: { x: shape.x, y: shape.y + shape.height },
+                br: { x: shape.x + shape.width, y: shape.y + shape.height }
+              }
+              for (const [id, h] of Object.entries(handles)) {
+                if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleSize / 2) {
+                  if (id === 'tl' || id === 'br') cursor = 'nwse-resize'
+                  else if (id === 'tr' || id === 'bl') cursor = 'nesw-resize'
+                  break
+                }
+              }
+
+              // Check inside shape for move
+              if (cursor === 'default') {
+                if (pos.x >= shape.x && pos.x <= shape.x + shape.width && pos.y >= shape.y && pos.y <= shape.y + shape.height) {
+                  cursor = 'move'
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Check unselected shapes
+        if (cursor === 'default') {
+          const hitShape = [...(stateRef.current.page.shapes || [])].reverse().find(s =>
+            pos.x >= s.x - 5 && pos.x <= s.x + s.width + 5 &&
+            pos.y >= s.y - 5 && pos.y <= s.y + s.height + 5
+          )
+          if (hitShape) cursor = 'move'
+        }
+
+        canvas.style.cursor = cursor
+      } else {
+        // Revert to tool defaults if not select
+        const tool = stateRef.current.activeTool
+        if (tool === 'text') canvas.style.cursor = 'text'
+        else if (tool === 'eraser') canvas.style.cursor = 'none'
+        else canvas.style.cursor = 'crosshair'
       }
     }
 
@@ -582,6 +694,10 @@ export default function EditablePage({
         // Visual feedback: clear and redraw everything with offset selected strokes
         if (ctx) {
           ctx.clearRect(0, 0, width, height)
+          // Draw shapes in the background
+          if (stateRef.current.page.shapes) {
+            stateRef.current.page.shapes.forEach(shape => drawShape(ctx, shape))
+          }
           // Draw unselected strokes
           stateRef.current.page.strokes.forEach(s => {
             if (!stateRef.current.selectedStrokeIds.includes(s.id)) {
@@ -619,7 +735,7 @@ export default function EditablePage({
           // Redraw to show the updated line
           if (ctx) {
             ctx.clearRect(0, 0, width, height)
-            drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool })
+            drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool }, stateRef.current.page.shapes || [])
           }
         }
       } else {
@@ -657,7 +773,7 @@ export default function EditablePage({
                 const ctx = canvas?.getContext('2d')
                 if (ctx && canvas) {
                   ctx.clearRect(0, 0, width, height)
-                  drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool })
+                  drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool }, stateRef.current.page.shapes || [])
                 }
               }
             }, 500)
@@ -886,7 +1002,7 @@ export default function EditablePage({
             width: width,
             height: height,
             touchAction: 'manipulation',
-            cursor: activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
+            cursor: activeTool === 'select' ? 'default' : activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
           }}
         />
         <canvas

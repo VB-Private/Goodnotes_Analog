@@ -218,7 +218,8 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToUpdate,
           strokes: op.newStrokes,
-          textFields: op.newTextFields || pageToUpdate.textFields
+          textFields: op.newTextFields || pageToUpdate.textFields,
+          shapes: op.newShapes || pageToUpdate.shapes
         }
         handlePageUpdate(updatedPage)
         setUndoStack(prev => [...prev, op])
@@ -251,7 +252,8 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToUndo,
           strokes: op.oldStrokes,
-          textFields: op.oldTextFields || pageToUndo.textFields
+          textFields: op.oldTextFields || pageToUndo.textFields,
+          shapes: op.oldShapes || pageToUndo.shapes
         }
         updatePage(updatedPage)
         setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
@@ -284,7 +286,8 @@ export default function NotebookView() {
         const updatedPage = {
           ...pageToRedo,
           strokes: op.newStrokes,
-          textFields: op.newTextFields || pageToRedo.textFields
+          textFields: op.newTextFields || pageToRedo.textFields,
+          shapes: op.newShapes || pageToRedo.shapes
         }
         updatePage(updatedPage)
         setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
@@ -952,9 +955,9 @@ export default function NotebookView() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#888',
+                      color: '#ffededff',
                       fontSize: 15,
-                      minHeight: '400px'
+                      minHeight: '600px'
                     }}
                   >
                     Tap + to add your first page
