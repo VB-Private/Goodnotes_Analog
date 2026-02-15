@@ -91,19 +91,16 @@ export function distToSegmentSq(p: { x: number, y: number }, v: { x: number, y: 
  * Checks if a point is "covered" by an eraser stroke.
  */
 export function isPointErased(point: { x: number, y: number }, eraserStroke: Stroke): boolean {
-    // The actual width is roughly Math.log(p.pressure + 1) * (eraserStroke.size * 2)
+    // Use fixed eraser size
+    const radius = eraserStroke.size
+
     for (let i = 0; i < eraserStroke.points.length - 1; i++) {
         const p1 = eraserStroke.points[i]
         const p2 = eraserStroke.points[i + 1]
 
-        // Approximate max radius in this segment for a quick conservative check
-        const s1 = Math.log(p1.pressure + 1) * (eraserStroke.size * 2)
-        const s2 = Math.log(p2.pressure + 1) * (eraserStroke.size * 2)
-        const maxRadius = Math.max(s1, s2) / 2
-
         // We add a tiny bit of padding to match visual erasure which might be slightly anti-aliased or rounded
         const distSq = distToSegmentSq(point, p1, p2)
-        if (distSq <= (maxRadius * 1.05) ** 2) {
+        if (distSq <= (radius * 1.05) ** 2) {
             return true
         }
     }

@@ -305,17 +305,12 @@ export default function EditablePage({
       const scaleX = width / rect.width
       const scaleY = height / rect.height
 
-      let pressure = 0.5
-      if ((e as TouchEvent).touches && (e as TouchEvent).touches[0] && typeof (e as any).touches[0].force !== 'undefined') {
-        pressure = (e as any).touches[0].force || 0.1
-      } else if (e instanceof PointerEvent) {
-        pressure = e.pressure || 0.5
-      }
+      // Round to 1 decimal place to reduce storage size
+      const round = (n: number) => Math.round(n * 10) / 10
 
       return {
-        x: (touch.clientX - rect.left) * scaleX,
-        y: (touch.clientY - rect.top) * scaleY,
-        pressure
+        x: round((touch.clientX - rect.left) * scaleX),
+        y: round((touch.clientY - rect.top) * scaleY)
       }
     }
 
@@ -349,8 +344,8 @@ export default function EditablePage({
       const point = points[l]
       const prevPoint = points[l - 1]
 
-      // Calculate smoothed lineWidth based on pressure
-      const targetLineWidth = Math.log(point.pressure + 1) * (stateRef.current.activeSize * 2)
+      // Calculate smoothed lineWidth based on fixed size
+      const targetLineWidth = stateRef.current.activeSize
       const currentLineWidth = (targetLineWidth * 0.2 + lastLineWidthRef.current * 0.8)
       lastLineWidthRef.current = currentLineWidth
 
@@ -529,7 +524,7 @@ export default function EditablePage({
 
       if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
         setErasedStrokeIds([])
-        const diameter = Math.log(pos.pressure + 1) * (stateRef.current.activeSize * 2)
+        const diameter = stateRef.current.activeSize
         cursorRef.current.style.display = 'block'
         cursorRef.current.style.width = `${diameter}px`
         cursorRef.current.style.height = `${diameter}px`
@@ -540,7 +535,7 @@ export default function EditablePage({
 
       isDrawingRef.current = true
       pointsRef.current = [pos]
-      lastLineWidthRef.current = Math.log(pos.pressure + 1) * (activeSize * 2)
+      lastLineWidthRef.current = activeSize
 
       // Start hold detection for drawing tools
       if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
@@ -575,7 +570,7 @@ export default function EditablePage({
 
       // Eraser cursor logic
       if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
-        const diameter = Math.log(pos.pressure + 1) * (stateRef.current.activeSize * 2)
+        const diameter = stateRef.current.activeSize
         cursorRef.current.style.display = 'block'
         cursorRef.current.style.width = `${diameter}px`
         cursorRef.current.style.height = `${diameter}px`
@@ -721,7 +716,7 @@ export default function EditablePage({
       if (e.cancelable) e.preventDefault()
 
       if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
-        const diameter = Math.log(pos.pressure + 1) * (stateRef.current.activeSize * 2)
+        const diameter = stateRef.current.activeSize
         cursorRef.current.style.width = `${diameter}px`
         cursorRef.current.style.height = `${diameter}px`
         cursorRef.current.style.marginLeft = `${-diameter / 2}px`
@@ -748,7 +743,7 @@ export default function EditablePage({
         }
 
         if (stateRef.current.activeTool === 'eraser') {
-          const radius = (Math.log(pos.pressure + 1) * (stateRef.current.activeSize * 2)) / 2
+          const radius = stateRef.current.activeSize / 2
           const newlyErased = stateRef.current.page.strokes
             .filter(s => !stateRef.current.erasedStrokeIds.includes(s.id) && isStrokeHitByCircle(s, pos, radius))
             .map(s => s.id)
@@ -786,7 +781,7 @@ export default function EditablePage({
       }
 
       requestIdleCallback(() => {
-        if (forceEl) forceEl.textContent = 'force = ' + pos.pressure.toFixed(3)
+        if (forceEl) forceEl.textContent = 'force = N/A'
         const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
         if (touchesEl && touch) {
           touchesEl.innerHTML = `type: ${(touch as any).touchType || 'unknown'}`

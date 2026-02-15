@@ -5,7 +5,6 @@ export type ShapeType = 'circle' | 'square' | 'triangle'
 export interface StrokePoint {
   x: number
   y: number
-  pressure: number
 }
 
 export interface Stroke {

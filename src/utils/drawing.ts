@@ -44,11 +44,9 @@ export function drawStrokePath(
   ctx.strokeStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-
-  let lastWidth = Math.log(points[0].pressure + 1) * (size * 2)
+  ctx.lineWidth = size
 
   if (points.length === 2) {
-    ctx.lineWidth = lastWidth
     ctx.beginPath()
     ctx.moveTo(points[0].x, points[0].y)
     ctx.lineTo(points[1].x, points[1].y)
@@ -57,12 +55,6 @@ export function drawStrokePath(
     for (let i = 1; i < points.length; i++) {
       const p = points[i]
       const prev = points[i - 1]
-
-      const targetWidth = Math.log(p.pressure + 1) * (size * 2)
-      const currentWidth = (targetWidth * 0.2 + lastWidth * 0.8)
-      lastWidth = currentWidth
-
-      ctx.lineWidth = currentWidth
 
       if (i >= 2) {
         const p2 = points[i - 2]

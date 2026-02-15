@@ -29,12 +29,7 @@ function hexToRgb(hex: string) {
         : { r: 0, g: 0, b: 0 }
 }
 
-/**
- * Linear interpolation
- */
-function lerp(a: number, b: number, t: number): number {
-    return a * (1 - t) + b * t
-}
+
 
 /**
  * Adaptive Catmull-Rom spline interpolation.
@@ -43,7 +38,7 @@ function lerp(a: number, b: number, t: number): number {
  * gapless strokes when drawing overlapping circles.
  */
 function interpolateStrokePointsForHandwriting(
-    points: { x: number; y: number; pressure: number }[],
+    points: { x: number; y: number }[],
     strokeSize: number,
     scale: { x: number; y: number }
 ): typeof points {
@@ -74,9 +69,8 @@ function interpolateStrokePointsForHandwriting(
 
             const x = catmullRom(p0.x, p1.x, p2.x, p3.x, t)
             const y = catmullRom(p0.y, p1.y, p2.y, p3.y, t)
-            const pressure = lerp(p1.pressure, p2.pressure, t)
 
-            result.push({ x, y, pressure })
+            result.push({ x, y })
         }
     }
 
@@ -151,10 +145,8 @@ function drawAnnotationsOnPage(
 
             // Step 2: Draw a filled circle at every point
             for (const point of smoothPoints) {
-                // Apple Pencil pressure mapping: linear, with a minimum of 30% of stroke size
-                // This ensures very light touches are still visible and smooth.
-                const pressureFactor = 0.3 + point.pressure * 0.3 // range 0.3–1.0
-                const radius = stroke.size * pressureFactor * scaleX
+                // Use fixed stroke size since we removed pressure
+                const radius = stroke.size * 0.5 * scaleX
 
                 pdfPage.drawEllipse({
                     x: point.x * scaleX,
