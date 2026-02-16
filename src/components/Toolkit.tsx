@@ -27,7 +27,6 @@ const COLORS = [
     '#F44336', // Red
     '#9C27B0', // Purple
     '#FF4081', // Pink
-    '#795548', // Brown
 ]
 
 const PEN_SIZES = [
@@ -39,9 +38,9 @@ const PEN_SIZES = [
 ]
 
 const ERASER_SIZES = [
-    { label: 'Medium', value: 40 },
-    { label: 'Big', value: 70 },
-    { label: 'Biggest', value: 140 },
+    { label: 'Medium', value: 30 },
+    { label: 'Big', value: 60 },
+    { label: 'Biggest', value: 130 },
 ]
 
 export default function Toolkit({
@@ -76,7 +75,7 @@ export default function Toolkit({
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [openPopup])
 
-    const isPenLike = activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon'
+    const isPenLike = activeTool === 'pen' || activeTool === 'crayon'
 
     const handleToolClick = (tool: ToolType) => {
         if (tool === 'pen') {
@@ -135,7 +134,7 @@ export default function Toolkit({
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         backdropFilter: 'blur(20px)',
         borderRadius: 24,
-        padding: '6px 12px',
+        padding: '6px 6px',
         display: 'flex',
         alignItems: 'center',
         gap: 4,
@@ -154,7 +153,7 @@ export default function Toolkit({
                     label="Pen Tools"
                 >
                     <PenIcon
-                        type={activeTool === 'pencil' ? 'pencil' : activeTool === 'crayon' ? 'crayon' : 'pen'}
+                        type={activeTool === 'crayon' ? 'crayon' : 'pen'}
                         color={activeColor}
                     />
                 </ToolButton>
@@ -237,14 +236,14 @@ export default function Toolkit({
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         backdropFilter: 'blur(20px)',
                         borderRadius: 20,
-                        padding: 16,
+                        padding: 8,
                         boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
                         border: '1px solid rgba(0,0,0,0.05)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 16,
+                        gap: 10,
                         pointerEvents: 'auto',
-                        minWidth: 240,
+                        minWidth: 220,
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -257,14 +256,6 @@ export default function Toolkit({
                             label="Pen"
                         >
                             <PenIcon type="pen" color={activeColor} />
-                        </SubToolButton>
-                        <SubToolButton
-                            active={activeTool === 'pencil'}
-                            activeColor={activeColor}
-                            onClick={() => onToolChange('pencil')}
-                            label="Pencil"
-                        >
-                            <PenIcon type="pencil" color={activeColor} />
                         </SubToolButton>
                         <SubToolButton
                             active={activeTool === 'crayon'}
@@ -280,7 +271,7 @@ export default function Toolkit({
 
                     {/* Width Presets */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Size</span>
+                        {/* <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Size</span> */}
                         <div style={{ display: 'flex', gap: 8 }}>
                             {PEN_SIZES.map(size => (
                                 <button
@@ -288,7 +279,7 @@ export default function Toolkit({
                                     onClick={() => onSizeChange(size.value)}
                                     style={{
                                         flex: 1,
-                                        height: 40,
+                                        height: 35,
                                         borderRadius: 12,
                                         border: 'none',
                                         backgroundColor: activeSize === size.value ? (activeColor || '#007AFF') : '#f5f5f7',
@@ -369,7 +360,7 @@ export default function Toolkit({
                             backgroundColor: 'rgba(255, 255, 255, 0.95)',
                             backdropFilter: 'blur(20px)',
                             borderRadius: 20,
-                            padding: 16,
+                            padding: 8,
                             boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
                             border: '1px solid rgba(0,0,0,0.05)',
                             display: 'flex',
@@ -381,7 +372,7 @@ export default function Toolkit({
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Eraser Size</span>
+                            {/* <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Eraser Size</span> */}
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {ERASER_SIZES.map(size => (
                                     <button
@@ -389,7 +380,7 @@ export default function Toolkit({
                                         onClick={() => onSizeChange(size.value)}
                                         style={{
                                             flex: 1,
-                                            height: 48,
+                                            height: 40,
                                             borderRadius: 12,
                                             border: 'none',
                                             backgroundColor: activeSize === size.value ? '#007AFF' : '#f5f5f7',
@@ -426,7 +417,7 @@ export default function Toolkit({
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         backdropFilter: 'blur(20px)',
                         borderRadius: 20,
-                        padding: 16,
+                        padding: 8,
                         boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
                         border: '1px solid rgba(0,0,0,0.05)',
                         display: 'flex',
@@ -479,12 +470,12 @@ export default function Toolkit({
                         </SubToolButton>
                     </div>
 
-                    <div style={{ padding: '0 4px' }}>
+                    <div style={{ padding: '0 10px' }}>
                         <button
                             onClick={() => onFillChange?.(!isShapeFilled)}
                             style={{
                                 width: '100%',
-                                padding: '10px',
+                                padding: '6px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -568,22 +559,14 @@ function SubToolButton({ children, active, onClick, label, activeColor }: { chil
             }}
         >
             {children}
-            <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+            {/* <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span> */}
         </button>
     )
 }
 
 // Icons
-function PenIcon({ type, color }: { type: 'pen' | 'pencil' | 'crayon', color?: string }) {
+function PenIcon({ type, color }: { type: 'pen' | 'crayon', color?: string }) {
     const strokeColor = color || 'currentColor'
-    if (type === 'pencil') {
-        return (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-        )
-    }
     if (type === 'crayon') {
         return (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
