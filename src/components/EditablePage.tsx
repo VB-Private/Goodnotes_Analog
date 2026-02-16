@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, ShapeType, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
+import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
 import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
@@ -236,21 +236,30 @@ export default function EditablePage({
       })
 
       // Draw current stroke if active
-      if (isDrawingRef.current && activeTool === 'laser' && pointsRef.current.length >= 2) {
-        ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
-        ctx.shadowBlur = 10
-        ctx.shadowColor = 'red'
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-        ctx.lineWidth = 10
+      if (isDrawingRef.current && (activeTool === 'laser' || activeTool === 'crayon' || activeTool === 'pen') && pointsRef.current.length >= 2) {
+        if (activeTool === 'laser') {
+          ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
+          ctx.shadowBlur = 10
+          ctx.shadowColor = 'red'
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.lineWidth = 10
 
-        ctx.beginPath()
-        ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
-        for (let i = 1; i < pointsRef.current.length; i++) {
-          ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+          ctx.beginPath()
+          ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
+          for (let i = 1; i < pointsRef.current.length; i++) {
+            ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+          }
+          ctx.stroke()
+          ctx.shadowBlur = 0
+        } else if (activeTool === 'crayon' || activeTool === 'pen') {
+          // Live drawing on overlay to avoid clearing the main canvas
+          drawStrokePath(ctx, pointsRef.current, {
+            color: stateRef.current.activeColor,
+            size: stateRef.current.activeSize,
+            tool: activeTool
+          })
         }
-        ctx.stroke()
-        ctx.shadowBlur = 0
       }
 
       // Draw lasso path
@@ -270,6 +279,16 @@ export default function EditablePage({
         // Fill area slightly
         ctx.fillStyle = 'rgba(0, 122, 255, 0.1)'
         ctx.fill()
+      }
+
+      // Draw lasso dragging preview
+      if (isDraggingSelectionRef.current && dragOffsetRef.current) {
+        const { x: dx, y: dy } = dragOffsetRef.current
+        const currentSelectedStrokes = stateRef.current.page.strokes.filter(s => stateRef.current.selectedStrokeIds.includes(s.id))
+        currentSelectedStrokes.forEach(s => {
+          const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
+          drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
+        })
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -314,62 +333,7 @@ export default function EditablePage({
       }
     }
 
-    function drawSegment(points: StrokePoint[]) {
-      if (!ctx) return
-      const l = points.length - 1
-      if (l < 1) return
 
-      ctx.strokeStyle = stateRef.current.activeTool === 'eraser' ? 'rgba(255,255,255,1)' : stateRef.current.activeColor
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-
-      ctx.globalAlpha = 1.0
-      if (stateRef.current.activeTool === 'eraser') {
-        // Eraser no longer draws on the canvas
-        return
-      } else if (stateRef.current.activeTool === 'laser') {
-        ctx.globalCompositeOperation = 'source-over'
-        ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
-        ctx.shadowBlur = 10
-        ctx.shadowColor = 'red'
-      } else {
-        ctx.globalCompositeOperation = 'source-over'
-        if (stateRef.current.activeTool === 'crayon') {
-          ctx.globalAlpha = 0.4
-        }
-      }
-
-      const point = points[l]
-      const prevPoint = points[l - 1]
-
-      // Calculate smoothed lineWidth based on fixed size
-      const targetLineWidth = stateRef.current.activeSize
-      const currentLineWidth = (targetLineWidth * 0.2 + lastLineWidthRef.current * 0.8)
-      lastLineWidthRef.current = currentLineWidth
-
-      if (points.length >= 3) {
-        const p2 = points[l - 2]
-        const xc = (prevPoint.x + point.x) / 2
-        const yc = (prevPoint.y + point.y) / 2
-
-        ctx.lineWidth = currentLineWidth
-        ctx.beginPath()
-        const prevXc = (p2.x + prevPoint.x) / 2
-        const prevYc = (p2.y + prevPoint.y) / 2
-        ctx.moveTo(prevXc, prevYc)
-        ctx.quadraticCurveTo(prevPoint.x, prevPoint.y, xc, yc)
-        ctx.stroke()
-      } else {
-        ctx.lineWidth = currentLineWidth
-        ctx.beginPath()
-        ctx.moveTo(prevPoint.x, prevPoint.y)
-        ctx.lineTo(point.x, point.y)
-        ctx.stroke()
-      }
-
-      ctx.globalCompositeOperation = 'source-over'
-      ctx.shadowBlur = 0
-    }
 
     const handleDown = (e: TouchEvent | MouseEvent) => {
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
@@ -512,6 +476,16 @@ export default function EditablePage({
         if (stateRef.current.selectionBox && isPointInBox(pos, stateRef.current.selectionBox, 20)) {
           isDraggingSelectionRef.current = true
           dragStartPosRef.current = pos
+
+          // Redraw main canvas without selected strokes to avoid flickering during move
+          const canvas = strokeCanvasRef.current
+          const ctx = canvas?.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, width, height)
+            const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
+            drawAllStrokes(ctx, unselectedStrokes, null, undefined, stateRef.current.page.shapes || [])
+          }
+
           if (e.cancelable) e.preventDefault()
           return
         } else {
@@ -547,13 +521,6 @@ export default function EditablePage({
             const startPoint = pointsRef.current[0]
             const endPoint = pointsRef.current[pointsRef.current.length - 1]
             pointsRef.current = [startPoint, endPoint]
-
-            const canvas = strokeCanvasRef.current
-            const ctx = canvas?.getContext('2d')
-            if (ctx && canvas) {
-              ctx.clearRect(0, 0, width, height)
-              drawAllStrokes(ctx, page.strokes, pointsRef.current, { color: activeColor, size: activeSize, tool: activeTool })
-            }
           }
         }, 1000) // 1 second hold
         holdTimeoutRef.current = timeoutId
@@ -686,27 +653,6 @@ export default function EditablePage({
         const dx = pos.x - dragStartPosRef.current.x
         const dy = pos.y - dragStartPosRef.current.y
         dragOffsetRef.current = { x: dx, y: dy }
-
-        // Visual feedback: clear and redraw everything with offset selected strokes
-        if (ctx) {
-          ctx.clearRect(0, 0, width, height)
-          // Draw shapes in the background
-          if (stateRef.current.page.shapes) {
-            stateRef.current.page.shapes.forEach(shape => drawShape(ctx, shape))
-          }
-          // Draw unselected strokes
-          stateRef.current.page.strokes.forEach(s => {
-            if (!stateRef.current.selectedStrokeIds.includes(s.id)) {
-              drawStrokePath(ctx, s.points, { color: s.color, size: s.size, tool: s.tool })
-            }
-          })
-          // Draw selected strokes with offset
-          const currentSelectedStrokes = stateRef.current.page.strokes.filter(s => stateRef.current.selectedStrokeIds.includes(s.id))
-          currentSelectedStrokes.forEach(s => {
-            const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
-            drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
-          })
-        }
         return
       }
 
@@ -727,18 +673,11 @@ export default function EditablePage({
         if (pointsRef.current.length >= 1) {
           const startPoint = pointsRef.current[0]
           pointsRef.current = [startPoint, pos]
-
-          // Redraw to show the updated line
-          if (ctx) {
-            ctx.clearRect(0, 0, width, height)
-            drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool }, stateRef.current.page.shapes || [])
-          }
         }
       } else {
         pointsRef.current.push(pos)
-        if (stateRef.current.activeTool !== 'laser' && stateRef.current.activeTool !== 'lasso' && stateRef.current.activeTool !== 'eraser') {
-          drawSegment(pointsRef.current)
-        }
+
+
 
         if (stateRef.current.activeTool === 'eraser') {
           const radius = stateRef.current.activeSize / 2
@@ -764,13 +703,6 @@ export default function EditablePage({
                 const startPoint = pointsRef.current[0]
                 const endPoint = pointsRef.current[pointsRef.current.length - 1]
                 pointsRef.current = [startPoint, endPoint]
-
-                const canvas = strokeCanvasRef.current
-                const ctx = canvas?.getContext('2d')
-                if (ctx && canvas) {
-                  ctx.clearRect(0, 0, width, height)
-                  drawAllStrokes(ctx, stateRef.current.page.strokes, pointsRef.current, { color: stateRef.current.activeColor, size: stateRef.current.activeSize, tool: stateRef.current.activeTool }, stateRef.current.page.shapes || [])
-                }
               }
             }, 500)
             holdTimeoutRef.current = timeoutId

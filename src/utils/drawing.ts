@@ -44,38 +44,33 @@ export function drawStrokePath(
   ctx.lineJoin = 'round'
   ctx.lineWidth = size
 
+  ctx.beginPath()
+
   if (points.length === 2) {
-    ctx.beginPath()
     ctx.moveTo(points[0].x, points[0].y)
     ctx.lineTo(points[1].x, points[1].y)
-    ctx.stroke()
-  } else {
-    for (let i = 1; i < points.length; i++) {
-      const p = points[i]
-      const prev = points[i - 1]
+  } else if (points.length > 2) {
+    ctx.moveTo(points[0].x, points[0].y)
 
-      if (i >= 2) {
-        const p2 = points[i - 2]
-        const xc = (prev.x + p.x) / 2
-        const yc = (prev.y + p.y) / 2
-        const prevXc = (p2.x + prev.x) / 2
-        const prevYc = (p2.y + prev.y) / 2
-
-        ctx.beginPath()
-        ctx.moveTo(prevXc, prevYc)
-        ctx.quadraticCurveTo(prev.x, prev.y, xc, yc)
-        ctx.stroke()
-      } else {
-        ctx.beginPath()
-        ctx.moveTo(prev.x, prev.y)
-        ctx.lineTo(p.x, p.y)
-        ctx.stroke()
-      }
+    // Draw smooth curve through points
+    for (let i = 1; i < points.length - 1; i++) {
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const midX = (p1.x + p2.x) / 2
+      const midY = (p1.y + p2.y) / 2
+      ctx.quadraticCurveTo(p1.x, p1.y, midX, midY)
     }
+
+    // Connect to the last point
+    const last = points[points.length - 1]
+    ctx.lineTo(last.x, last.y)
   }
 
-  // Reset composite operation
+  ctx.stroke()
+
+  // Reset state
   ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1.0
 }
 
 export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {

@@ -130,7 +130,7 @@ function drawAnnotationsOnPage(
 
         const color = hexToRgb(stroke.color)
         let opacity = 1.0
-        if (stroke.tool === 'crayon') opacity = 0.2
+        if (stroke.tool === 'crayon') opacity = 0.4
 
         for (const fragment of fragments) {
             if (fragment.points.length < 2) continue
