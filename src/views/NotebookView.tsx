@@ -1138,7 +1138,7 @@ export default function NotebookView() {
       <div
         style={{
           position: 'fixed',
-          bottom: 6,
+          bottom: 3,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',

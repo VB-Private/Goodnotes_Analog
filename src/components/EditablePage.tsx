@@ -334,9 +334,7 @@ export default function EditablePage({
         ctx.shadowColor = 'red'
       } else {
         ctx.globalCompositeOperation = 'source-over'
-        if (stateRef.current.activeTool === 'pencil') {
-          ctx.globalAlpha = 0.6
-        } else if (stateRef.current.activeTool === 'crayon') {
+        if (stateRef.current.activeTool === 'crayon') {
           ctx.globalAlpha = 0.4
         }
       }
@@ -379,7 +377,7 @@ export default function EditablePage({
       const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
 
       // Restrict drawing tools to Pen/Mouse only
-      const isDrawingTool = ['pen', 'pencil', 'crayon', 'eraser', 'lasso', 'laser'].includes(stateRef.current.activeTool)
+      const isDrawingTool = ['pen', 'crayon', 'eraser', 'lasso', 'laser'].includes(stateRef.current.activeTool)
       const allowedInput = isPen || isMouse
 
       const shouldProcess = stateRef.current.activeTool === 'text' || stateRef.current.activeTool === 'figures' || stateRef.current.activeTool === 'select' || (isDrawingTool && allowedInput)
@@ -538,7 +536,7 @@ export default function EditablePage({
       lastLineWidthRef.current = activeSize
 
       // Start hold detection for drawing tools
-      if (activeTool === 'pen' || activeTool === 'pencil' || activeTool === 'crayon') {
+      if (activeTool === 'pen' || activeTool === 'crayon') {
         isStraightLineModeRef.current = false
 
         const timeoutId = window.setTimeout(() => {
@@ -759,7 +757,7 @@ export default function EditablePage({
           holdTimeoutRef.current = null
 
           // Restart timeout
-          if (stateRef.current.activeTool === 'pen' || stateRef.current.activeTool === 'pencil' || stateRef.current.activeTool === 'crayon') {
+          if (stateRef.current.activeTool === 'pen' || stateRef.current.activeTool === 'crayon') {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
                 isStraightLineModeRef.current = true

@@ -34,9 +34,7 @@ export function drawStrokePath(
     ctx.globalCompositeOperation = 'destination-out'
   } else {
     ctx.globalCompositeOperation = 'source-over'
-    if (tool === 'pencil') {
-      ctx.globalAlpha = 0.6
-    } else if (tool === 'crayon') {
+    if (tool === 'crayon') {
       ctx.globalAlpha = 0.4
     }
   }

@@ -1,5 +1,5 @@
 export type PageTemplate = 'blank' | 'squared' | 'lined' | 'pdf'
-export type ToolType = 'pen' | 'pencil' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'figures' | 'select'
+export type ToolType = 'pen' | 'crayon' | 'eraser' | 'text' | 'laser' | 'lasso' | 'figures' | 'select'
 export type ShapeType = 'circle' | 'square' | 'triangle'
 
 export interface StrokePoint {

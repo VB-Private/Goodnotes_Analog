@@ -107,7 +107,7 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                         strokeWidth={s.size}
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        opacity={s.tool === 'pencil' ? 0.6 : s.tool === 'crayon' ? 0.4 : 1}
+                        opacity={s.tool === 'crayon' ? 0.2 : 1}
                     />
                 ))}
             </svg>

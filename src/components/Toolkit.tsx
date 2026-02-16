@@ -108,7 +108,7 @@ export default function Toolkit({
     const containerStyle: React.CSSProperties = viewport ? {
         position: 'fixed',
         left: viewport.offsetLeft + (viewport.width / 2),
-        top: viewport.offsetTop + 6,
+        top: viewport.offsetTop + 3,
         transform: `translateX(-50%) scale(${1 / viewport.scale})`,
         transformOrigin: 'top center',
         zIndex: 150,
@@ -120,7 +120,7 @@ export default function Toolkit({
     } : {
         position: 'fixed',
         left: '50%',
-        top: 6,
+        top: 3,
         transform: 'translateX(-50%)',
         zIndex: 150,
         display: 'flex',
@@ -498,7 +498,7 @@ export default function Toolkit({
                                 background: isShapeFilled ? 'currentColor' : 'transparent',
                                 display: 'inline-block'
                             }} />
-                            Fill Shape
+                            Fill
                         </button>
                     </div>
                 </div>
@@ -517,8 +517,8 @@ function ToolButton({ children, active, onClick, label, disabled, activeColor }:
             onClick={onClick}
             disabled={disabled}
             style={{
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 borderRadius: 12,
                 display: 'flex',
                 alignItems: 'center',
@@ -544,7 +544,7 @@ function SubToolButton({ children, active, onClick, label, activeColor }: { chil
             onClick={onClick}
             style={{
                 flex: 1,
-                padding: '12px 8px',
+                padding: '10px 8px',
                 borderRadius: 12,
                 display: 'flex',
                 flexDirection: 'column',
