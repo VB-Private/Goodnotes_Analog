@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebooks, createNotebook, updateNotebook, deleteNotebook, getPages, deletePage } from '../storage/db'
 import type { Notebook } from '../types'
 import Loader from '../components/Loader'
@@ -10,6 +10,7 @@ function generateId(): string {
 
 export default function NotebooksList() {
   const navigate = useNavigate()
+  const { workspaceId, folderId } = useParams<{ workspaceId: string; folderId: string }>()
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
   const [loading, setLoading] = useState(true)
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
@@ -23,18 +24,21 @@ export default function NotebooksList() {
   }, [])
 
   useEffect(() => {
-    getNotebooks().then((list) => {
+    if (!folderId) return
+    getNotebooks(folderId).then((list) => {
       setNotebooks(list.sort((a, b) => a.createdAt - b.createdAt))
       setLoading(false)
     })
-  }, [])
+  }, [folderId])
 
   async function handleCreateNotebook() {
+    if (!folderId) return
     const title = window.prompt('Notebook title')
     if (!title?.trim()) return
     const id = generateId()
     const notebook: Notebook = {
       id,
+      folderId,
       title: title.trim(),
       createdAt: Date.now(),
       pageIds: [],
@@ -81,7 +85,10 @@ export default function NotebooksList() {
       margin: '0 auto',
       background: '#ffffffff',
     }}>
-      <h1 style={{ marginBottom: 16, color: '#000000ff' }}>Notebooks</h1>
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={() => navigate(`/workspace/${workspaceId}`)} style={{ cursor: 'pointer', padding: '4px 8px' }}>← Back</button>
+        <h1 style={{ margin: 0, color: '#000000ff' }}>Notebooks</h1>
+      </div>
       <button
         type="button"
         onClick={handleCreateNotebook}

@@ -1,10 +1,12 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
-import type { Notebook, Page, PDFFile, PDFAnnotation } from '../types'
+import type { Notebook, Page, PDFFile, PDFAnnotation, Workspace, Folder } from '../types'
 
 const DB_NAME = 'goodnotes-analog'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 interface GoodnotesDB extends DBSchema {
+  workspaces: { key: string; value: Workspace }
+  folders: { key: string; value: Folder }
   notebooks: { key: string; value: Notebook }
   pages: { key: string; value: Page }
   pdfFiles: { key: string; value: PDFFile }
@@ -30,7 +32,14 @@ function getDB() {
           if (!database.objectStoreNames.contains('pdfAnnotations')) {
             database.createObjectStore('pdfAnnotations', { keyPath: 'id' })
           }
-          // Migration logic would go here if needed
+        }
+        if (oldVersion < 5) {
+          if (!database.objectStoreNames.contains('workspaces')) {
+            database.createObjectStore('workspaces', { keyPath: 'id' })
+          }
+          if (!database.objectStoreNames.contains('folders')) {
+            database.createObjectStore('folders', { keyPath: 'id' })
+          }
         }
       },
     })
@@ -38,11 +47,55 @@ function getDB() {
   return dbPromise
 }
 
+// --- Workspaces ---
+
+export async function getWorkspaces(): Promise<Workspace[]> {
+  const db = await getDB()
+  return db.getAll('workspaces')
+}
+
+export async function createWorkspace(workspace: Workspace): Promise<void> {
+  const db = await getDB()
+  await db.add('workspaces', workspace)
+}
+
+export async function deleteWorkspace(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('workspaces', id)
+}
+
+// --- Folders ---
+
+export async function getFolders(workspaceId: string): Promise<Folder[]> {
+  const db = await getDB()
+  const all = await db.getAll('folders')
+  return all.filter((f) => f.workspaceId === workspaceId)
+}
+
+export async function getFolder(id: string): Promise<Folder | undefined> {
+  const db = await getDB()
+  return db.get('folders', id)
+}
+
+export async function createFolder(folder: Folder): Promise<void> {
+  const db = await getDB()
+  await db.add('folders', folder)
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('folders', id)
+}
+
 // --- Notebooks ---
 
-export async function getNotebooks(): Promise<Notebook[]> {
+export async function getNotebooks(folderId?: string): Promise<Notebook[]> {
   const db = await getDB()
-  return db.getAll('notebooks')
+  const all = await db.getAll('notebooks')
+  if (folderId) {
+    return all.filter((n) => n.folderId === folderId)
+  }
+  return all
 }
 
 export async function getNotebook(id: string): Promise<Notebook | undefined> {

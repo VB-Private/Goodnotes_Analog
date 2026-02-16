@@ -36,8 +36,22 @@ export interface TextField {
   fontSize: number
 }
 
+export interface Workspace {
+  id: string
+  name: string
+  createdAt: number
+}
+
+export interface Folder {
+  id: string
+  workspaceId: string
+  name: string
+  createdAt: number
+}
+
 export interface Notebook {
   id: string
+  folderId: string
   title: string
   createdAt: number
   pageIds: string[]

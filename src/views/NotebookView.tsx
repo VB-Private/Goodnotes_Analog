@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile, getPDFAnnotation } from '../storage/db'
+import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile, getPDFAnnotation, getFolder } from '../storage/db'
 import type { Notebook, Page, PageTemplate, ToolType, ShapeType, PDFFile, Operation, Tab, PDFAnnotation } from '../types'
 import PdfFocusedView from '../components/PdfFocusedView'
 import AddPageModal from '../components/AddPageModal'
@@ -545,7 +545,16 @@ export default function NotebookView() {
           >
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={async () => {
+                if (notebook && notebook.folderId) {
+                  const folder = await getFolder(notebook.folderId)
+                  if (folder) {
+                    navigate(`/workspace/${folder.workspaceId}/folder/${folder.id}`)
+                    return
+                  }
+                }
+                navigate('/')
+              }}
               style={{
                 padding: '8px 16px',
                 fontSize: '12px',
