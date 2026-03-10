@@ -61,7 +61,7 @@ export default function FoldersView() {
         <div style={{
             height: '100dvh',
             overflowY: 'auto',
-            padding: 'calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)) 24px',
+            padding: '24px 24px calc(24px + env(safe-area-inset-bottom)) 24px',
             maxWidth: 720,
             margin: '0 auto',
             background: '#ffffffff',

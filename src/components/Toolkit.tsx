@@ -108,7 +108,7 @@ export default function Toolkit({
     const containerStyle: React.CSSProperties = viewport ? {
         position: 'fixed',
         left: viewport.offsetLeft + (viewport.width / 2),
-        top: `calc(${viewport.offsetTop}px + 3px + env(safe-area-inset-top))`,
+        top: viewport.offsetTop + 3,
         transform: `translateX(-50%) scale(${1 / viewport.scale})`,
         transformOrigin: 'top center',
         zIndex: 150,
@@ -120,7 +120,7 @@ export default function Toolkit({
     } : {
         position: 'fixed',
         left: '50%',
-        top: 'calc(3px + env(safe-area-inset-top))',
+        top: 3,
         transform: 'translateX(-50%)',
         zIndex: 150,
         display: 'flex',
@@ -538,7 +538,7 @@ function ToolButton({ children, active, onClick, label, disabled, activeColor }:
     )
 }
 
-function SubToolButton({ children, active, onClick, activeColor }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, activeColor?: string }) {
+function SubToolButton({ children, active, onClick, label, activeColor }: { children: React.ReactNode, active: boolean, onClick: () => void, label: string, activeColor?: string }) {
     return (
         <button
             onClick={onClick}

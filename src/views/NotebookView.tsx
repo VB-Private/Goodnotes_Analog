@@ -511,9 +511,9 @@ export default function NotebookView() {
         <div
           style={{
             position: 'absolute',
-            top: 'calc(6px + env(safe-area-inset-top))',
-            left: 'calc(6px + env(safe-area-inset-left))',
-            right: 'calc(6px + env(safe-area-inset-right))',
+            top: 6,
+            left: 6,
+            right: 6,
             zIndex: 200, // Higher than toolkit (20)
             pointerEvents: 'none',
             display: 'flex',
@@ -861,7 +861,7 @@ export default function NotebookView() {
                 flexDirection: 'column',
                 gap: 16,
                 minHeight: '100%',
-                padding: 'calc(60px + env(safe-area-inset-top)) 40px env(safe-area-inset-bottom) 40px',
+                padding: '60px 40px 0 40px',
               }}
             >
               {/* PDF Elements Section */}
@@ -1130,7 +1130,7 @@ export default function NotebookView() {
       <div
         style={{
           position: 'fixed',
-          bottom: 'calc(3px + env(safe-area-inset-bottom))',
+          bottom: 3,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',

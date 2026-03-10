@@ -12,10 +12,10 @@ export default defineConfig({
         name: 'Goodnotes Analog',
         short_name: 'Analog',
         description: 'A minimalist handwriting experience.',
-        theme_color: '#ffffff',
+        theme_color: '#121212',
         start_url: '/Goodnotes_Analog/',
         display: 'standalone',
-        background_color: '#ffffff',
+        background_color: '#121212',
         icons: [
           {
             src: 'icon.svg',
