@@ -24,7 +24,6 @@ export default function NotebookView() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [scale, setScale] = useState(1)
-  const [pdfMetadata, setPdfMetadata] = useState<Record<string, { name: string }>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
@@ -113,7 +112,6 @@ export default function NotebookView() {
           }
         })
 
-        setPdfMetadata(metadata)
         setOpenTabs([{ id: 'notes', type: 'notes', title: 'Notes' }, ...pdfTabs])
       } else {
         setOpenTabs([{ id: 'notes', type: 'notes', title: 'Notes' }])
@@ -358,7 +356,6 @@ export default function NotebookView() {
       await updateNotebook(updatedNotebook)
 
       setNotebook(updatedNotebook)
-      setPdfMetadata(prev => ({ ...prev, [pdfId]: { name: file.name } }))
       setShowAddModal(false)
 
       const newTab: Tab = { id: pdfId, type: 'pdf', title: file.name }
@@ -415,11 +412,6 @@ export default function NotebookView() {
       await deletePDFFile(pdfId)
       await deletePDFAnnotationsForFile(pdfId)
 
-      setPdfMetadata(prev => {
-        const next = { ...prev }
-        delete next[pdfId]
-        return next
-      })
       setOpenTabs(prev => prev.filter(t => t.id !== pdfId))
       if (activeTabId === pdfId) setActiveTabId('notes')
     } catch (error) {
@@ -519,9 +511,9 @@ export default function NotebookView() {
         <div
           style={{
             position: 'absolute',
-            top: 6,
-            left: 6,
-            right: 6,
+            top: 'calc(6px + env(safe-area-inset-top))',
+            left: 'calc(6px + env(safe-area-inset-left))',
+            right: 'calc(6px + env(safe-area-inset-right))',
             zIndex: 200, // Higher than toolkit (20)
             pointerEvents: 'none',
             display: 'flex',
@@ -869,7 +861,7 @@ export default function NotebookView() {
                 flexDirection: 'column',
                 gap: 16,
                 minHeight: '100%',
-                padding: '60px 40px 0 40px',
+                padding: 'calc(60px + env(safe-area-inset-top)) 40px env(safe-area-inset-bottom) 40px',
               }}
             >
               {/* PDF Elements Section */}
@@ -1138,7 +1130,7 @@ export default function NotebookView() {
       <div
         style={{
           position: 'fixed',
-          bottom: 3,
+          bottom: 'calc(3px + env(safe-area-inset-bottom))',
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
