@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getFolders, createFolder, deleteFolder } from '../storage/db'
 import type { Folder } from '../types'
 import Loader from '../components/Loader'
+import PromptModal from '../components/PromptModal'
 
 function generateId(): string {
     return crypto.randomUUID()
@@ -14,6 +15,7 @@ export default function FoldersView() {
     const [folders, setFolders] = useState<Folder[]>([])
     const [loading, setLoading] = useState(true)
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+    const [showCreateModal, setShowCreateModal] = useState(false)
 
     useEffect(() => {
         function handleClickOutside() {
@@ -31,19 +33,18 @@ export default function FoldersView() {
         })
     }, [workspaceId])
 
-    async function handleCreateFolder() {
+    async function handleCreateFolder(title: string) {
         if (!workspaceId) return
-        const title = window.prompt('Folder Name (e.g. Math, History)')
-        if (!title?.trim()) return
         const id = generateId()
         const folder: Folder = {
             id,
             workspaceId,
-            name: title.trim(),
+            name: title,
             createdAt: Date.now(),
         }
         await createFolder(folder)
         setFolders((prev) => [...prev, folder].sort((a, b) => a.createdAt - b.createdAt))
+        setShowCreateModal(false)
     }
 
     async function handleDelete(folderId: string) {
@@ -73,7 +74,7 @@ export default function FoldersView() {
 
             <button
                 type="button"
-                onClick={handleCreateFolder}
+                onClick={() => setShowCreateModal(true)}
                 style={{ marginBottom: 24, padding: '8px 16px' }}
             >
                 Create Folder
@@ -161,6 +162,14 @@ export default function FoldersView() {
                     </li>
                 ))}
             </ul>
+            {showCreateModal && (
+                <PromptModal
+                    title="Folder Name"
+                    placeholder="e.g. Math, History"
+                    onSubmit={handleCreateFolder}
+                    onCancel={() => setShowCreateModal(false)}
+                />
+            )}
         </div>
     )
 }

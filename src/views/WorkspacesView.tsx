@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getWorkspaces, createWorkspace, deleteWorkspace, getNotebooks, updateNotebook, getFolders, createFolder } from '../storage/db'
 import type { Workspace } from '../types'
 import Loader from '../components/Loader'
+import PromptModal from '../components/PromptModal'
 
 function generateId(): string {
     return crypto.randomUUID()
@@ -13,6 +14,7 @@ export default function WorkspacesView() {
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
     const [loading, setLoading] = useState(true)
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+    const [showCreateModal, setShowCreateModal] = useState(false)
 
     useEffect(() => {
         function handleClickOutside() {
@@ -69,17 +71,16 @@ export default function WorkspacesView() {
         checkMigration()
     }, [])
 
-    async function handleCreateWorkspace() {
-        const title = window.prompt('Workspace Name (e.g. School, Personal)')
-        if (!title?.trim()) return
+    async function handleCreateWorkspace(title: string) {
         const id = generateId()
         const workspace: Workspace = {
             id,
-            name: title.trim(),
+            name: title,
             createdAt: Date.now(),
         }
         await createWorkspace(workspace)
         setWorkspaces((prev) => [...prev, workspace].sort((a, b) => a.createdAt - b.createdAt))
+        setShowCreateModal(false)
     }
 
     async function handleDelete(workspaceId: string) {
@@ -105,7 +106,7 @@ export default function WorkspacesView() {
             <h1 style={{ marginBottom: 16, color: '#000000ff' }}>Workspaces</h1>
             <button
                 type="button"
-                onClick={handleCreateWorkspace}
+                onClick={() => setShowCreateModal(true)}
                 style={{ marginBottom: 24, padding: '8px 16px' }}
             >
                 Create Workspace
@@ -195,6 +196,14 @@ export default function WorkspacesView() {
             </ul>
             <h2 style={{ marginTop: 24, color: '#000000ff' }}>Shared Workspaces</h2>
             <p style={{ color: '#000000ff' }}>Will be added soon</p>
+            {showCreateModal && (
+                <PromptModal
+                    title="Workspace Name"
+                    placeholder="e.g. School, Personal"
+                    onSubmit={handleCreateWorkspace}
+                    onCancel={() => setShowCreateModal(false)}
+                />
+            )}
         </div>
     )
 }

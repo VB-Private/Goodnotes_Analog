@@ -11,6 +11,7 @@ import PagePreview from '../components/PagePreview'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import { exportNotebookToPDF, exportAnnotatedPDF } from '../utils/export'
 import { getPDFPageCount } from '../utils/pdf'
+import { useZoomPan } from '../hooks/useZoomPan'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -23,8 +24,7 @@ export default function NotebookView() {
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [scale, setScale] = useState(1)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const { zoom, offsetX, offsetY, containerRef, screenToCanvas } = useZoomPan()
 
   const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
 
@@ -121,19 +121,7 @@ export default function NotebookView() {
     })
   }, [notebookId])
 
-  useEffect(() => {
-    function updateScale() {
-      const s = Math.min(
-        1,
-        (window.innerWidth - 80) / PAGE_WIDTH, // Adjusted for toolkit space
-        (window.innerHeight - 32) / PAGE_HEIGHT // Further reduced subtraction for full height
-      )
-      setScale(Math.max(0.1, s))
-    }
-    updateScale()
-    window.addEventListener('resize', updateScale)
-    return () => window.removeEventListener('resize', updateScale)
-  }, [])
+  // Scale is now managed by useZoomPan hook (zoom state)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -184,7 +172,7 @@ export default function NotebookView() {
     }, 300)
 
     return () => clearTimeout(scrollTimeout)
-  }, [loading, notebook, pages, scale, activeTabId])
+  }, [loading, notebook, pages, zoom, activeTabId])
 
   // Reset scroll attempt when switching tabs so we scroll to last page again when returning to notes
   useEffect(() => {
@@ -327,10 +315,7 @@ export default function NotebookView() {
     await updateNotebook(notebookWithLastPage)
     setNotebook(notebookWithLastPage)
 
-    setTimeout(() => {
-      const el = scrollContainerRef.current
-      if (el) el.scrollTop = el.scrollHeight
-    }, 0)
+    // Scroll handled by zoom/pan now
   }
 
   async function handleImportPDF(file: File) {
@@ -497,15 +482,17 @@ export default function NotebookView() {
   if (loading || !notebook) return <Loader />
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100dvh',
-      width: '100vw',
-      background: '#0000006f', // Dark background for the entire view
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100dvh',
+        width: '100vw',
+        background: '#0000006f',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
       {/* Header Container */}
       {activeTabId === 'notes' && (
         <div
@@ -846,21 +833,22 @@ export default function NotebookView() {
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {activeTabId === 'notes' ? (
           <div
-            ref={scrollContainerRef}
+            ref={containerRef}
             style={{
+              width: '100%',
               height: '100%',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              WebkitOverflowScrolling: 'touch',
-              paddingBottom: '70px', // Space for tab bar
+              position: 'relative',
+              overflow: 'hidden',
+              touchAction: 'none',
             }}
           >
             <div
               style={{
+                transform: `translate(${offsetX}px, ${offsetY}px) scale(${zoom})`,
+                transformOrigin: 'top left',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 16,
-                minHeight: '100%',
                 padding: '60px 40px 0 40px',
               }}
             >
@@ -979,7 +967,7 @@ export default function NotebookView() {
                         position: 'relative',
                         scrollSnapAlign: 'start',
                         scrollSnapStop: 'always',
-                        minHeight: PAGE_HEIGHT * scale,
+                        minHeight: PAGE_HEIGHT,
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'flex-start',
@@ -990,7 +978,7 @@ export default function NotebookView() {
                         style={{
                           position: 'absolute',
                           top: '12px',
-                          left: `calc(50% - ${(PAGE_WIDTH * scale) / 2}px - 40px)`,
+                          left: `calc(50% - ${(PAGE_WIDTH) / 2}px - 40px)`,
                           fontSize: '14px',
                           fontWeight: 'bold',
                           color: '#ccc',
@@ -1005,7 +993,7 @@ export default function NotebookView() {
                         style={{
                           position: 'absolute',
                           top: '12px',
-                          left: `calc(50% + ${(PAGE_WIDTH * scale) / 2}px + 10px)`,
+                          left: `calc(50% + ${(PAGE_WIDTH) / 2}px + 10px)`,
                           zIndex: 10,
                         }}
                       >
@@ -1093,7 +1081,7 @@ export default function NotebookView() {
                       </div>
                       <EditablePage
                         page={p}
-                        scale={scale}
+                        scale={1}
                         activeTool={activeTool}
                         activeColor={activeColor}
                         activeSize={activeSize}
@@ -1102,7 +1090,8 @@ export default function NotebookView() {
                         onOperation={handleOperation}
                         onToolChange={setActiveTool}
                         isShapeFilled={isShapeFilled}
-                        onInputTypeChange={() => { }} // Dummy as it was removed
+                        onInputTypeChange={() => { }}
+                        screenToCanvasFn={screenToCanvas}
                       />
                     </div>
                   ))

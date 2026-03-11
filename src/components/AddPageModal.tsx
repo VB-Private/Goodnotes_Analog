@@ -1,5 +1,4 @@
 import type { PageTemplate } from '../types'
-import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface AddPageModalProps {
   onClose: () => void
@@ -14,22 +13,14 @@ const TEMPLATES: { value: PageTemplate; label: string }[] = [
 ]
 
 export default function AddPageModal({ onClose, onSelect, onImportPDF }: AddPageModalProps) {
-  const viewport = useVisualViewport()
-
-  const scale = viewport ? 1 / viewport.scale : 1
-  const top = viewport ? viewport.offsetTop : 0
-  const left = viewport ? viewport.offsetLeft : 0
-  const width = viewport ? viewport.width : '100vw'
-  const height = viewport ? viewport.height : '100vh'
-
   return (
     <div
       style={{
         position: 'fixed',
-        top,
-        left,
-        width,
-        height,
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
         background: 'rgba(0,0,0,0.4)',
         display: 'flex',
         alignItems: 'center',
@@ -48,8 +39,6 @@ export default function AddPageModal({ onClose, onSelect, onImportPDF }: AddPage
           padding: 24,
           borderRadius: 12,
           minWidth: 280,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
         }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}

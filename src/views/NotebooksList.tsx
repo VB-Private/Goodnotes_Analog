@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebooks, createNotebook, updateNotebook, deleteNotebook, getPages, deletePage } from '../storage/db'
 import type { Notebook } from '../types'
 import Loader from '../components/Loader'
+import PromptModal from '../components/PromptModal'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -14,6 +15,8 @@ export default function NotebooksList() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([])
   const [loading, setLoading] = useState(true)
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [renamingNotebook, setRenamingNotebook] = useState<Notebook | null>(null)
 
   useEffect(() => {
     function handleClickOutside() {
@@ -31,32 +34,29 @@ export default function NotebooksList() {
     })
   }, [folderId])
 
-  async function handleCreateNotebook() {
+  async function handleCreateNotebook(title: string) {
     if (!folderId) return
-    const title = window.prompt('Notebook title')
-    if (!title?.trim()) return
     const id = generateId()
     const notebook: Notebook = {
       id,
       folderId,
-      title: title.trim(),
+      title,
       createdAt: Date.now(),
       pageIds: [],
       pdfIds: [],
     }
     await createNotebook(notebook)
     setNotebooks((prev) => [...prev, notebook].sort((a, b) => a.createdAt - b.createdAt))
+    setShowCreateModal(false)
     navigate(`/notebook/${id}`)
   }
 
-  async function handleRename(notebook: Notebook) {
-    const newTitle = window.prompt('Rename notebook', notebook.title)
-    if (!newTitle || newTitle.trim() === notebook.title) return
-
-    const updated = { ...notebook, title: newTitle.trim() }
+  async function handleRename(notebook: Notebook, newTitle: string) {
+    const updated = { ...notebook, title: newTitle }
     await updateNotebook(updated)
     setNotebooks((prev) => prev.map((nb) => (nb.id === notebook.id ? updated : nb)))
     setActiveMenuId(null)
+    setRenamingNotebook(null)
   }
 
   async function handleDelete(notebookId: string) {
@@ -91,7 +91,7 @@ export default function NotebooksList() {
       </div>
       <button
         type="button"
-        onClick={handleCreateNotebook}
+        onClick={() => setShowCreateModal(true)}
         style={{ marginBottom: 24, padding: '8px 16px' }}
       >
         Create notebook
@@ -154,7 +154,7 @@ export default function NotebooksList() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleRename(nb)
+                        setRenamingNotebook(nb)
                       }}
                       style={{
                         display: 'block',
@@ -200,6 +200,22 @@ export default function NotebooksList() {
           </li>
         ))}
       </ul>
+      {showCreateModal && (
+        <PromptModal
+          title="Notebook Title"
+          placeholder="e.g. Math Notes"
+          onSubmit={handleCreateNotebook}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      )}
+      {renamingNotebook && (
+        <PromptModal
+          title="Rename Notebook"
+          defaultValue={renamingNotebook.title}
+          onSubmit={(newTitle) => handleRename(renamingNotebook, newTitle)}
+          onCancel={() => setRenamingNotebook(null)}
+        />
+      )}
     </div>
   )
 }

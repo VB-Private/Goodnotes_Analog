@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react'
 import type { ToolType, ShapeType } from '../types'
-import { useVisualViewport } from '../hooks/useVisualViewport'
 
 interface ToolkitProps {
     activeTool: ToolType
@@ -59,7 +58,6 @@ export default function Toolkit({
     isShapeFilled = true,
     onFillChange
 }: ToolkitProps) {
-    const viewport = useVisualViewport()
     const toolkitRef = useRef<HTMLDivElement>(null)
     const colorInputRef = useRef<HTMLInputElement>(null)
     const [openPopup, setOpenPopup] = useState<'pen' | 'eraser' | 'figures' | 'select' | null>(null)
@@ -105,19 +103,7 @@ export default function Toolkit({
         }
     }
 
-    const containerStyle: React.CSSProperties = viewport ? {
-        position: 'fixed',
-        left: viewport.offsetLeft + (viewport.width / 2),
-        top: viewport.offsetTop + 3,
-        transform: `translateX(-50%) scale(${1 / viewport.scale})`,
-        transformOrigin: 'top center',
-        zIndex: 150,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 8,
-        pointerEvents: 'none',
-    } : {
+    const containerStyle: React.CSSProperties = {
         position: 'fixed',
         left: '50%',
         top: 3,

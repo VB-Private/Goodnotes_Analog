@@ -20,6 +20,7 @@ interface EditablePageProps {
   isShapeFilled?: boolean
   width?: number
   height?: number
+  screenToCanvasFn?: (screenX: number, screenY: number) => { x: number; y: number }
 }
 
 export default function EditablePage({
@@ -35,7 +36,8 @@ export default function EditablePage({
   onToolChange,
   onInputTypeChange,
   width: customWidth,
-  height: customHeight
+  height: customHeight,
+  screenToCanvasFn
 }: EditablePageProps) {
   const width = customWidth || PAGE_WIDTH
   const height = customHeight || PAGE_HEIGHT
@@ -60,10 +62,10 @@ export default function EditablePage({
   const oldShapesRef = useRef<Shape[]>([])
 
   // Store latest state in a ref to avoid re-binding event listeners frequently
-  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange })
+  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn })
   useEffect(() => {
-    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange }
-  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange])
+    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn }
+  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn])
 
   const selectedStrokes = useMemo(() =>
     page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
@@ -319,14 +321,14 @@ export default function EditablePage({
     const requestIdleCallback = (window as any).requestIdleCallback || ((fn: any) => setTimeout(fn, 1))
 
     function getPos(e: TouchEvent | MouseEvent) {
-      const rect = canvas!.getBoundingClientRect()
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
-      const scaleX = width / rect.width
-      const scaleY = height / rect.height
-
-      // Round to 1 decimal place to reduce storage size
       const round = (n: number) => Math.round(n * 10) / 10
 
+      // getBoundingClientRect already accounts for all CSS transforms (scale, translate)
+      // on ancestor elements, so the same math works whether zoomed or not.
+      const rect = canvas!.getBoundingClientRect()
+      const scaleX = width / rect.width
+      const scaleY = height / rect.height
       return {
         x: round((touch.clientX - rect.left) * scaleX),
         y: round((touch.clientY - rect.top) * scaleY)
