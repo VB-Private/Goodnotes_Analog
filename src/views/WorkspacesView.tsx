@@ -109,7 +109,7 @@ export default function WorkspacesView() {
                 onClick={() => setShowCreateModal(true)}
                 style={{ marginBottom: 24, padding: '8px 16px' }}
             >
-                Create Workspace
+                Create Workspace Yeah
             </button>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {workspaces.map((ws) => (

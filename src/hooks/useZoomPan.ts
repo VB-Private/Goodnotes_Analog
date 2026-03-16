@@ -79,20 +79,25 @@ export function useZoomPan() {
     let baseTouchDist = 0
     let baseTouchMid = { x: 0, y: 0 }
 
-    function getTouchDist(t1: Touch, t2: Touch) {
+    function getTouchDist(t1: Touch, t2?: Touch) {
+      if (!t2) return 1
       return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
     }
 
-    function getTouchMid(t1: Touch, t2: Touch) {
+    function getTouchMid(t1: Touch, t2?: Touch) {
+      if (!t2) return { x: t1.clientX, y: t1.clientY }
       return {
         x: (t1.clientX + t2.clientX) / 2,
         y: (t1.clientY + t2.clientY) / 2,
       }
     }
 
+    const isStylus = (t: Touch) => (t as any).touchType === 'stylus' || (t as any).touchType === 'pen'
+
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        e.preventDefault()
+      // Allow two fingers, or one finger if it's not a stylus and a child element (like a drawing canvas) didn't already capture it
+      if (e.touches.length === 2 || (e.touches.length === 1 && !isStylus(e.touches[0]) && !e.defaultPrevented)) {
+        if (e.touches.length === 2) e.preventDefault()
         baseState = stateRef.current
         baseTouchDist = getTouchDist(e.touches[0], e.touches[1])
         baseTouchMid = getTouchMid(e.touches[0], e.touches[1])
@@ -100,13 +105,21 @@ export function useZoomPan() {
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && baseState) {
-        e.preventDefault()
+      if (!baseState) return
+      
+      const isTwoFingers = e.touches.length === 2
+      const isOneFingerPan = e.touches.length === 1 && !isStylus(e.touches[0])
+
+      if (isTwoFingers || isOneFingerPan) {
+        // Only prevent default on move if we are actually intentionally dragging
+        // This ensures taps still register clicks on underlying UI
+        if (e.cancelable) e.preventDefault()
+        
         const rect = el.getBoundingClientRect()
         const dist = getTouchDist(e.touches[0], e.touches[1])
         const mid = getTouchMid(e.touches[0], e.touches[1])
 
-        const factor = dist / baseTouchDist
+        const factor = isTwoFingers ? (dist / baseTouchDist) : 1
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, baseState.zoom * factor))
 
         // Anchor zoom to the base pinch midpoint
@@ -135,6 +148,11 @@ export function useZoomPan() {
         baseState = stateRef.current
         baseTouchDist = getTouchDist(e.touches[0], e.touches[1])
         baseTouchMid = getTouchMid(e.touches[0], e.touches[1])
+      } else if (e.touches.length === 1 && !isStylus(e.touches[0])) {
+        // Re-baseline to 1 finger
+        baseState = stateRef.current
+        baseTouchDist = 1
+        baseTouchMid = getTouchMid(e.touches[0])
       } else {
         baseState = null
       }
