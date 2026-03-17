@@ -160,17 +160,32 @@ export default function EditablePage({
       }
     }
 
-    // Highlight selected strokes
-    if (selectedStrokeIds.length > 0) {
+    // Highlight selected strokes and lasso-selected items
+    if (selectedStrokeIds.length > 0 || selectedLassoShapeIds.length > 0) {
       ctx.save()
-      ctx.strokeStyle = '#007AFF'
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
 
-      selectedStrokes.forEach(s => {
-        const box = getBoundingBox(s.points)
-        ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
-      })
+      if (selectedStrokeIds.length > 0) {
+        ctx.strokeStyle = '#007AFF'
+        ctx.lineWidth = 2
+        ctx.setLineDash([5, 5])
+
+        selectedStrokes.forEach(s => {
+          const box = getBoundingBox(s.points)
+          ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
+        })
+      }
+
+      if (selectedLassoShapeIds.length > 0) {
+        ctx.strokeStyle = '#007AFF'
+        ctx.lineWidth = 2
+        ctx.setLineDash([5, 5])
+        selectedLassoShapeIds.forEach(id => {
+          const shape = page.shapes?.find(s => s.id === id)
+          if (shape) {
+            ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8)
+          }
+        })
+      }
 
       if (selectionBox) {
         ctx.strokeStyle = '#007AFF'
@@ -847,22 +862,22 @@ export default function EditablePage({
             }
           }
 
+          const selectedLassoShapes = stateRef.current.lassoPicksShapes
+            ? (stateRef.current.page.shapes || []).filter(s => isShapeInPolygon(s, lassoPolygon))
+            : []
+
+          if (hasChanges || selectedLassoShapes.length > 0 || newSelectedIds.length > 0) {
             if (hasChanges) {
-              if (stateRef.current.onOperation) {
-                stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes })
-              } else {
-                stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
+                if (stateRef.current.onOperation) {
+                  stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes })
+                } else {
+                  stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
+                }
               }
               setSelectedStrokeIds(newSelectedIds)
-            } else {
-              setSelectedStrokeIds(newSelectedIds)
-            }
-
-            // Also check for shapes if lassoPicksShapes is enabled
-            if (stateRef.current.lassoPicksShapes) {
-              const selectedLassoShapes = (stateRef.current.page.shapes || []).filter(s => isShapeInPolygon(s, lassoPolygon))
               setSelectedLassoShapeIds(selectedLassoShapes.map(s => s.id))
             } else {
+              setSelectedStrokeIds([])
               setSelectedLassoShapeIds([])
             }
           } else if (stateRef.current.activeTool !== 'eraser') {
