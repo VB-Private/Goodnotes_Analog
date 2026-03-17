@@ -232,11 +232,16 @@ export function useZoomPan() {
     [containerEl, state.zoom, state.offsetX, state.offsetY]
   )
 
+  const setPan = useCallback((x: number, y: number) => {
+    setState(prev => ({ ...prev, offsetX: x, offsetY: y }))
+  }, [])
+
   return {
     zoom: state.zoom,
     offsetX: state.offsetX,
     offsetY: state.offsetY,
     containerRef,
     screenToCanvas: getScreenToCanvas,
+    setPan
   }
 }

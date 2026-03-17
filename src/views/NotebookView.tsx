@@ -24,7 +24,7 @@ export default function NotebookView() {
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const { zoom, offsetX, offsetY, containerRef, screenToCanvas } = useZoomPan()
+  const { zoom, offsetX, offsetY, containerRef, screenToCanvas, setPan } = useZoomPan()
 
   const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
 
@@ -159,20 +159,26 @@ export default function NotebookView() {
 
     // We wait a bit longer to ensure everything (Paper background, EditablePage, etc.) has rendered at the correct scale
     const scrollTimeout = setTimeout(() => {
-      const pageElement = document.getElementById(`page-wrapper-${targetPageId}`)
-      if (pageElement) {
-        pageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
-        hasAttemptedInitialScroll.current = true
-      } else {
-        // Fallback to last page if target is missing
-        const lastPageEl = document.getElementById(`page-wrapper-${pages[pages.length - 1].id}`)
-        lastPageEl?.scrollIntoView({ behavior: 'auto', block: 'start' })
+      let targetEl = document.getElementById(`page-wrapper-${targetPageId}`)
+      
+      // Fallback to last page if target is missing
+      if (!targetEl) {
+        targetEl = document.getElementById(`page-wrapper-${pages[pages.length - 1].id}`)
+      }
+
+      if (targetEl) {
+        // Find the relative offset from the top of the transform container
+        // Subtract a little padding (e.g. 60px) so the page isn't flushed hard against the top edge
+        const topOffset = targetEl.offsetTop - 60
+        
+        // Use our Hook's internal pan state instead of native browser scroll
+        setPan(0, -topOffset)
         hasAttemptedInitialScroll.current = true
       }
     }, 300)
 
     return () => clearTimeout(scrollTimeout)
-  }, [loading, notebook, pages, zoom, activeTabId])
+  }, [loading, notebook, pages, zoom, activeTabId, setPan])
 
   // Reset scroll attempt when switching tabs so we scroll to last page again when returning to notes
   useEffect(() => {

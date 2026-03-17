@@ -340,7 +340,10 @@ export default function EditablePage({
     const handleDown = (e: TouchEvent | MouseEvent) => {
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
-      const isMouse = e instanceof MouseEvent && !(e instanceof PointerEvent && (e as any).pointerType === 'touch')
+      // Only process mouse events if it's the primary/left button (button === 0)
+      const isMouse = e instanceof MouseEvent && 
+                      !(e instanceof PointerEvent && (e as any).pointerType === 'touch') && 
+                      e.button === 0
 
       // Restrict drawing tools to Pen/Mouse only
       const isDrawingTool = ['pen', 'crayon', 'eraser', 'lasso', 'laser'].includes(stateRef.current.activeTool)
