@@ -49,6 +49,10 @@ export default function NotebookView() {
     const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
     return saved && JSON.parse(saved).isShapeFilled !== undefined ? JSON.parse(saved).isShapeFilled : true
   })
+  const [lassoPicksShapes, setLassoPicksShapes] = useState(() => {
+    const saved = localStorage.getItem(TOOLKIT_STORAGE_KEY)
+    return saved && JSON.parse(saved).lassoPicksShapes !== undefined ? JSON.parse(saved).lassoPicksShapes : false
+  })
 
   useEffect(() => {
     localStorage.setItem(TOOLKIT_STORAGE_KEY, JSON.stringify({
@@ -56,9 +60,10 @@ export default function NotebookView() {
       activeColor,
       penSize,
       eraserSize,
-      isShapeFilled
+      isShapeFilled,
+      lassoPicksShapes
     }))
-  }, [activeTool, activeColor, penSize, eraserSize, isShapeFilled])
+  }, [activeTool, activeColor, penSize, eraserSize, isShapeFilled, lassoPicksShapes])
 
   const activeSize = activeTool === 'eraser' ? eraserSize : penSize
   const onSizeChange = (size: number) => {
@@ -833,6 +838,8 @@ export default function NotebookView() {
         onShapeTypeChange={setSelectedShapeType}
         isShapeFilled={isShapeFilled}
         onFillChange={setIsShapeFilled}
+        lassoPicksShapes={lassoPicksShapes}
+        onLassoPicksShapesChange={setLassoPicksShapes}
       />
 
       {/* Main Content Area */}
@@ -1096,6 +1103,7 @@ export default function NotebookView() {
                         onOperation={handleOperation}
                         onToolChange={setActiveTool}
                         isShapeFilled={isShapeFilled}
+                        lassoPicksShapes={lassoPicksShapes}
                         onInputTypeChange={() => { }}
                         screenToCanvasFn={screenToCanvas}
                       />

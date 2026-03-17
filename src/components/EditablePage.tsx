@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, ShapeType, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath } from '../utils/drawing'
-import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle } from '../utils/geometry'
+import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
+import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle, isShapeInPolygon } from '../utils/geometry'
 import Paper from './Paper'
 import TextFieldComponent from './TextFieldComponent'
 
@@ -21,6 +21,7 @@ interface EditablePageProps {
   width?: number
   height?: number
   screenToCanvasFn?: (screenX: number, screenY: number) => { x: number; y: number }
+  lassoPicksShapes?: boolean
 }
 
 export default function EditablePage({
@@ -37,7 +38,8 @@ export default function EditablePage({
   onInputTypeChange,
   width: customWidth,
   height: customHeight,
-  screenToCanvasFn
+  screenToCanvasFn,
+  lassoPicksShapes = false
 }: EditablePageProps) {
   const width = customWidth || PAGE_WIDTH
   const height = customHeight || PAGE_HEIGHT
@@ -58,14 +60,15 @@ export default function EditablePage({
   const isStraightLineModeRef = useRef(false)
   const [erasedStrokeIds, setErasedStrokeIds] = useState<string[]>([])
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
+  const [selectedLassoShapeIds, setSelectedLassoShapeIds] = useState<string[]>([])
   const [activeHandle, setActiveHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | 'move' | null>(null)
   const oldShapesRef = useRef<Shape[]>([])
 
   // Store latest state in a ref to avoid re-binding event listeners frequently
-  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn })
+  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds })
   useEffect(() => {
-    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn }
-  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn])
+    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds }
+  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds])
 
   const selectedStrokes = useMemo(() =>
     page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
@@ -73,13 +76,19 @@ export default function EditablePage({
   )
 
   useEffect(() => {
-    if (selectedStrokes.length > 0) {
+    const selectedLassoShapes = page.shapes?.filter(s => selectedLassoShapeIds.includes(s.id)) || []
+
+    if (selectedStrokes.length > 0 || selectedLassoShapes.length > 0) {
       const allPoints = selectedStrokes.flatMap(s => s.points)
+      selectedLassoShapes.forEach(s => {
+        allPoints.push({ x: s.x, y: s.y })
+        allPoints.push({ x: s.x + s.width, y: s.y + s.height })
+      })
       setSelectionBox(getBoundingBox(allPoints))
     } else {
       setSelectionBox(null)
     }
-  }, [selectedStrokes])
+  }, [selectedStrokes, selectedLassoShapeIds, page.shapes])
 
   // Draw background strokes (saved ones)
   useEffect(() => {
@@ -291,6 +300,11 @@ export default function EditablePage({
           const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
           drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
         })
+
+        const currentSelectedLassoShapes = stateRef.current.page.shapes?.filter(s => stateRef.current.selectedLassoShapeIds.includes(s.id)) || []
+        currentSelectedLassoShapes.forEach(s => {
+          drawShape(ctx, { ...s, x: s.x + dx, y: s.y + dy })
+        })
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -306,6 +320,7 @@ export default function EditablePage({
     isDrawingRef.current = false
     if (activeTool !== 'lasso') {
       setSelectedStrokeIds([])
+      setSelectedLassoShapeIds([])
     }
   }, [activeTool])
 
@@ -341,9 +356,9 @@ export default function EditablePage({
       const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
       const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
       // Only process mouse events if it's the primary/left button (button === 0)
-      const isMouse = e instanceof MouseEvent && 
-                      !(e instanceof PointerEvent && (e as any).pointerType === 'touch') && 
-                      e.button === 0
+      const isMouse = e instanceof MouseEvent &&
+        !(e instanceof PointerEvent && (e as any).pointerType === 'touch') &&
+        e.button === 0
 
       // Restrict drawing tools to Pen/Mouse only
       const isDrawingTool = ['pen', 'crayon', 'eraser', 'lasso', 'laser'].includes(stateRef.current.activeTool)
@@ -486,16 +501,18 @@ export default function EditablePage({
           const canvas = strokeCanvasRef.current
           const ctx = canvas?.getContext('2d')
           if (ctx) {
-            ctx.clearRect(0, 0, width, height)
-            const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
-            drawAllStrokes(ctx, unselectedStrokes, null, undefined, stateRef.current.page.shapes || [])
-          }
+          ctx.clearRect(0, 0, width, height)
+          const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
+          const unselectedShapes = (stateRef.current.page.shapes || []).filter(s => !stateRef.current.selectedLassoShapeIds.includes(s.id))
+          drawAllStrokes(ctx, unselectedStrokes, null, undefined, unselectedShapes)
+        }
 
           if (e.cancelable) e.preventDefault()
           return
         } else {
           // Start a new lasso selection
           setSelectedStrokeIds([])
+          setSelectedLassoShapeIds([])
         }
       }
 
@@ -527,7 +544,7 @@ export default function EditablePage({
             const endPoint = pointsRef.current[pointsRef.current.length - 1]
             pointsRef.current = [startPoint, endPoint]
           }
-        }, 1000) // 1 second hold
+        }, 500) // 0.5 second hold
         holdTimeoutRef.current = timeoutId
       }
 
@@ -757,10 +774,29 @@ export default function EditablePage({
             }
             return s
           })
+
+          const updatedShapes = (stateRef.current.page.shapes || []).map(s => {
+            if (stateRef.current.selectedLassoShapeIds.includes(s.id)) {
+              return {
+                ...s,
+                x: s.x + dx,
+                y: s.y + dy
+              }
+            }
+            return s
+          })
+
           if (stateRef.current.onOperation) {
-            stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes: updatedStrokes })
+            stateRef.current.onOperation({
+              type: 'bulk-update',
+              pageId: stateRef.current.page.id,
+              oldStrokes: stateRef.current.page.strokes,
+              newStrokes: updatedStrokes,
+              oldShapes: stateRef.current.page.shapes || [],
+              newShapes: updatedShapes
+            })
           } else {
-            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: updatedStrokes })
+            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: updatedStrokes, shapes: updatedShapes })
           }
         }
         dragOffsetRef.current = { x: 0, y: 0 }
@@ -811,17 +847,25 @@ export default function EditablePage({
             }
           }
 
-          if (hasChanges) {
-            if (stateRef.current.onOperation) {
-              stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes })
+            if (hasChanges) {
+              if (stateRef.current.onOperation) {
+                stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes })
+              } else {
+                stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
+              }
+              setSelectedStrokeIds(newSelectedIds)
             } else {
-              stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
+              setSelectedStrokeIds(newSelectedIds)
             }
-            setSelectedStrokeIds(newSelectedIds)
-          } else {
-            setSelectedStrokeIds(newSelectedIds)
-          }
-        } else if (stateRef.current.activeTool !== 'eraser') {
+
+            // Also check for shapes if lassoPicksShapes is enabled
+            if (stateRef.current.lassoPicksShapes) {
+              const selectedLassoShapes = (stateRef.current.page.shapes || []).filter(s => isShapeInPolygon(s, lassoPolygon))
+              setSelectedLassoShapeIds(selectedLassoShapes.map(s => s.id))
+            } else {
+              setSelectedLassoShapeIds([])
+            }
+          } else if (stateRef.current.activeTool !== 'eraser') {
           const stroke: Stroke = {
             id: crypto.randomUUID(),
             points: [...pointsRef.current],

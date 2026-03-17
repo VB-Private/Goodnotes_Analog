@@ -169,3 +169,22 @@ export function isStrokeHitByCircle(stroke: Stroke, center: { x: number, y: numb
     }
     return false
 }
+
+/**
+ * Checks if a shape is inside a lasso polygon.
+ */
+export function isShapeInPolygon(shape: import('../types').Shape, polygon: { x: number; y: number }[]): boolean {
+    if (polygon.length < 3) return false
+
+    // Check corners and center
+    const points = [
+        { x: shape.x, y: shape.y },
+        { x: shape.x + shape.width, y: shape.y },
+        { x: shape.x + shape.width, y: shape.y + shape.height },
+        { x: shape.x, y: shape.y + shape.height },
+        { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 }
+    ]
+
+    return points.some(p => isPointInPolygon(p, polygon))
+}
+
