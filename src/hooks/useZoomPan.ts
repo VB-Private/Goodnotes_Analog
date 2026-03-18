@@ -236,12 +236,21 @@ export function useZoomPan() {
     setState(prev => ({ ...prev, offsetX: x, offsetY: y }))
   }, [])
 
+  const setViewport = useCallback((zoom: number, offsetX: number, offsetY: number) => {
+    setState({ zoom, offsetX, offsetY })
+  }, [])
+
+  // Stable getter that always returns the latest viewport without triggering re-renders
+  const getViewport = useCallback(() => stateRef.current, [])
+
   return {
     zoom: state.zoom,
     offsetX: state.offsetX,
     offsetY: state.offsetY,
     containerRef,
     screenToCanvas: getScreenToCanvas,
-    setPan
+    setPan,
+    setViewport,
+    getViewport,
   }
 }

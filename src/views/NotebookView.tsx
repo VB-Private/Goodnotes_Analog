@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getNotebook, getPages, updateNotebook, createPage, updatePage, deletePage, savePDFFile, getPDFFile, deletePDFFile, deletePDFAnnotationsForFile, getPDFAnnotation, getFolder } from '../storage/db'
 import type { Notebook, Page, PageTemplate, ToolType, ShapeType, PDFFile, Operation, Tab, PDFAnnotation } from '../types'
@@ -12,6 +12,8 @@ import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
 import { exportNotebookToPDF, exportAnnotatedPDF } from '../utils/export'
 import { getPDFPageCount } from '../utils/pdf'
 import { useZoomPan } from '../hooks/useZoomPan'
+import { useIsContentOffscreen, useFitToContent } from '../hooks/useBackToContent'
+import BackToContentButton from '../components/BackToContentButton'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -24,7 +26,20 @@ export default function NotebookView() {
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const { zoom, offsetX, offsetY, containerRef, screenToCanvas, setPan } = useZoomPan()
+  const { zoom, offsetX, offsetY, containerRef, screenToCanvas, setPan, setViewport, getViewport } = useZoomPan()
+
+  // Track canvas container dimensions for offscreen detection
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // Combined callback ref: feeds the same node to both useZoomPan and our size observer
+  const mergedCanvasRef = useCallback((el: HTMLDivElement | null) => {
+    containerRef(el)
+    canvasContainerRef.current = el
+  }, [containerRef])
+
+  // Viewport object for the offscreen hook
+  const viewport = useMemo(() => ({ zoom, offsetX, offsetY }), [zoom, offsetX, offsetY])
 
   const TOOLKIT_STORAGE_KEY = 'goodnotes-toolkit-settings'
 
@@ -86,6 +101,25 @@ export default function NotebookView() {
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([])
   const [selectedShapeType, setSelectedShapeType] = useState<ShapeType>('circle')
   const hasAttemptedInitialScroll = useRef(false)
+
+  // Attach ResizeObserver to measure the notes canvas area
+  useEffect(() => {
+    const el = canvasContainerRef.current
+    if (!el) return
+    setCanvasSize({ width: el.clientWidth, height: el.clientHeight })
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry) {
+        setCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasContainerRef.current])
+
+  const isContentOffscreen = useIsContentOffscreen(pages, viewport, canvasSize.width, canvasSize.height)
+  const fitToContent = useFitToContent(pages, canvasSize.width, canvasSize.height, setViewport, getViewport)
 
   useEffect(() => {
     function handleClickOutside() {
@@ -845,8 +879,8 @@ export default function NotebookView() {
       {/* Main Content Area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {activeTabId === 'notes' ? (
-          <div
-            ref={containerRef}
+           <div
+            ref={mergedCanvasRef}
             style={{
               width: '100%',
               height: '100%',
@@ -1112,6 +1146,12 @@ export default function NotebookView() {
                 )}
               </div>
             </div>
+
+            {/* Back to Content button */}
+            <BackToContentButton
+              visible={isContentOffscreen}
+              onClick={fitToContent}
+            />
           </div>
         ) : (
           <PdfFocusedView
