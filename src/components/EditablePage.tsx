@@ -22,6 +22,7 @@ interface EditablePageProps {
   height?: number
   screenToCanvasFn?: (screenX: number, screenY: number) => { x: number; y: number }
   lassoPicksShapes?: boolean
+  copyTrigger?: number
 }
 
 export default function EditablePage({
@@ -39,7 +40,8 @@ export default function EditablePage({
   width: customWidth,
   height: customHeight,
   screenToCanvasFn,
-  lassoPicksShapes = false
+  lassoPicksShapes = false,
+  copyTrigger = 0
 }: EditablePageProps) {
   const width = customWidth || PAGE_WIDTH
   const height = customHeight || PAGE_HEIGHT
@@ -63,6 +65,15 @@ export default function EditablePage({
   const [selectedLassoShapeIds, setSelectedLassoShapeIds] = useState<string[]>([])
   const [activeHandle, setActiveHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | 'move' | null>(null)
   const oldShapesRef = useRef<Shape[]>([])
+
+  // Lasso resize state
+  const isResizingSelectionRef = useRef(false)
+  const resizeHandleRef = useRef<'tl' | 'tr' | 'bl' | 'br' | null>(null)
+  const resizeAnchorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const resizeScaleRef = useRef({ sx: 1, sy: 1 })
+  const originalSelectionBoxRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null)
+  const originalSelectedStrokesRef = useRef<Stroke[]>([])
+  const originalSelectedShapesRef = useRef<Shape[]>([])
 
   // Store latest state in a ref to avoid re-binding event listeners frequently
   const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds })
@@ -89,6 +100,52 @@ export default function EditablePage({
       setSelectionBox(null)
     }
   }, [selectedStrokes, selectedLassoShapeIds, page.shapes])
+
+  // Handle Copy Selection
+  useEffect(() => {
+    if (copyTrigger > 0 && (selectedStrokeIds.length > 0 || selectedLassoShapeIds.length > 0)) {
+      const offset = 20
+      
+      const clonedStrokes = page.strokes
+        .filter(s => selectedStrokeIds.includes(s.id))
+        .map(s => ({
+          ...s,
+          id: crypto.randomUUID(),
+          points: s.points.map(p => ({ x: p.x + offset, y: p.y + offset }))
+        }))
+        
+      const clonedShapes = (page.shapes || [])
+        .filter(s => selectedLassoShapeIds.includes(s.id))
+        .map(s => ({
+          ...s,
+          id: crypto.randomUUID(),
+          x: s.x + offset,
+          y: s.y + offset
+        }))
+        
+      if (clonedStrokes.length > 0 || clonedShapes.length > 0) {
+        const updatedStrokes = [...page.strokes, ...clonedStrokes]
+        const updatedShapes = [...(page.shapes || []), ...clonedShapes]
+        
+        if (onOperation) {
+          onOperation({
+            type: 'bulk-update',
+            pageId: page.id,
+            oldStrokes: page.strokes,
+            newStrokes: updatedStrokes,
+            oldShapes: page.shapes || [],
+            newShapes: updatedShapes
+          })
+        } else {
+          onUpdate({ ...page, strokes: updatedStrokes, shapes: updatedShapes })
+        }
+        
+        // Select the new items
+        setSelectedStrokeIds(clonedStrokes.map(s => s.id))
+        setSelectedLassoShapeIds(clonedShapes.map(s => s.id))
+      }
+    }
+  }, [copyTrigger])
 
   // Draw background strokes (saved ones)
   useEffect(() => {
@@ -191,7 +248,30 @@ export default function EditablePage({
         ctx.strokeStyle = '#007AFF'
         ctx.setLineDash([])
         ctx.lineWidth = 1
-        ctx.strokeRect(selectionBox.minX - 8, selectionBox.minY - 8, (selectionBox.maxX - selectionBox.minX) + 16, (selectionBox.maxY - selectionBox.minY) + 16)
+        const pad = 8
+        const bx = selectionBox.minX - pad
+        const by = selectionBox.minY - pad
+        const bw = (selectionBox.maxX - selectionBox.minX) + pad * 2
+        const bh = (selectionBox.maxY - selectionBox.minY) + pad * 2
+        ctx.strokeRect(bx, by, bw, bh)
+
+        // Draw resize handles at corners
+        const handleSize = 8 / scale
+        ctx.fillStyle = '#fff'
+        ctx.strokeStyle = '#007AFF'
+        ctx.lineWidth = 2
+        const corners = [
+          { x: bx, y: by },             // tl
+          { x: bx + bw, y: by },        // tr
+          { x: bx, y: by + bh },        // bl
+          { x: bx + bw, y: by + bh }    // br
+        ]
+        corners.forEach(c => {
+          ctx.beginPath()
+          ctx.arc(c.x, c.y, handleSize / 2, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+        })
       }
       ctx.restore()
     }
@@ -320,6 +400,48 @@ export default function EditablePage({
         currentSelectedLassoShapes.forEach(s => {
           drawShape(ctx, { ...s, x: s.x + dx, y: s.y + dy })
         })
+      }
+
+      // Draw lasso resize preview
+      if (isResizingSelectionRef.current) {
+        const { sx, sy } = resizeScaleRef.current
+        const anchor = resizeAnchorRef.current
+
+        originalSelectedStrokesRef.current.forEach(s => {
+          const scaledPoints = s.points.map(p => ({
+            x: anchor.x + (p.x - anchor.x) * sx,
+            y: anchor.y + (p.y - anchor.y) * sy
+          }))
+          drawStrokePath(ctx, scaledPoints, { color: s.color, size: s.size, tool: s.tool })
+        })
+
+        originalSelectedShapesRef.current.forEach(s => {
+          const newX = anchor.x + (s.x - anchor.x) * sx
+          const newY = anchor.y + (s.y - anchor.y) * sy
+          const newW = s.width * sx
+          const newH = s.height * sy
+          drawShape(ctx, { ...s, x: newX, y: newY, width: Math.abs(newW), height: Math.abs(newH) })
+        })
+
+        // Draw the resized bounding box
+        if (originalSelectionBoxRef.current) {
+          const ob = originalSelectionBoxRef.current
+          const pad = 8
+          const newMinX = anchor.x + (ob.minX - pad - anchor.x) * sx
+          const newMinY = anchor.y + (ob.minY - pad - anchor.y) * sy
+          const newMaxX = anchor.x + (ob.maxX + pad - anchor.x) * sx
+          const newMaxY = anchor.y + (ob.maxY + pad - anchor.y) * sy
+          ctx.strokeStyle = '#007AFF'
+          ctx.lineWidth = 1
+          ctx.setLineDash([5, 5])
+          ctx.strokeRect(
+            Math.min(newMinX, newMaxX),
+            Math.min(newMinY, newMaxY),
+            Math.abs(newMaxX - newMinX),
+            Math.abs(newMaxY - newMinY)
+          )
+          ctx.setLineDash([])
+        }
       }
 
       animationFrameId = requestAnimationFrame(render)
@@ -507,6 +629,53 @@ export default function EditablePage({
       const pos = getPos(e)
 
       if (stateRef.current.activeTool === 'lasso') {
+        // Check if clicking on a resize handle first
+        if (stateRef.current.selectionBox) {
+          const box = stateRef.current.selectionBox
+          const pad = 8
+          const bx = box.minX - pad
+          const by = box.minY - pad
+          const bw = (box.maxX - box.minX) + pad * 2
+          const bh = (box.maxY - box.minY) + pad * 2
+          const handleHitSize = 20 / scale
+          const handleCorners: { id: 'tl' | 'tr' | 'bl' | 'br'; x: number; y: number; anchorX: number; anchorY: number }[] = [
+            { id: 'tl', x: bx, y: by, anchorX: bx + bw, anchorY: by + bh },
+            { id: 'tr', x: bx + bw, y: by, anchorX: bx, anchorY: by + bh },
+            { id: 'bl', x: bx, y: by + bh, anchorX: bx + bw, anchorY: by },
+            { id: 'br', x: bx + bw, y: by + bh, anchorX: bx, anchorY: by },
+          ]
+
+          for (const h of handleCorners) {
+            if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleHitSize) {
+              isResizingSelectionRef.current = true
+              resizeHandleRef.current = h.id
+              resizeAnchorRef.current = { x: h.anchorX, y: h.anchorY }
+              originalSelectionBoxRef.current = { ...box }
+              resizeScaleRef.current = { sx: 1, sy: 1 }
+              dragStartPosRef.current = pos
+
+              // Snapshot current selected items for preview
+              originalSelectedStrokesRef.current = stateRef.current.page.strokes
+                .filter(s => stateRef.current.selectedStrokeIds.includes(s.id))
+              originalSelectedShapesRef.current = (stateRef.current.page.shapes || [])
+                .filter(s => stateRef.current.selectedLassoShapeIds.includes(s.id))
+
+              // Redraw without selected items
+              const canvas = strokeCanvasRef.current
+              const ctx = canvas?.getContext('2d')
+              if (ctx) {
+                ctx.clearRect(0, 0, width, height)
+                const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
+                const unselectedShapes = (stateRef.current.page.shapes || []).filter(s => !stateRef.current.selectedLassoShapeIds.includes(s.id))
+                drawAllStrokes(ctx, unselectedStrokes, null, undefined, unselectedShapes)
+              }
+
+              if (e.cancelable) e.preventDefault()
+              return
+            }
+          }
+        }
+
         // Check if clicking inside current selection to drag
         if (stateRef.current.selectionBox && isPointInBox(pos, stateRef.current.selectionBox, 20)) {
           isDraggingSelectionRef.current = true
@@ -524,6 +693,7 @@ export default function EditablePage({
 
           if (e.cancelable) e.preventDefault()
           return
+
         } else {
           // Start a new lasso selection
           setSelectedStrokeIds([])
@@ -685,6 +855,23 @@ export default function EditablePage({
         return
       }
 
+      // Lasso resize in progress
+      if (isResizingSelectionRef.current && dragStartPosRef.current) {
+        if (e.cancelable) e.preventDefault()
+        const anchor = resizeAnchorRef.current
+        const startPos = dragStartPosRef.current
+        // Original distance from anchor to drag start
+        const origDx = startPos.x - anchor.x
+        const origDy = startPos.y - anchor.y
+        // Current distance from anchor to mouse
+        const curDx = pos.x - anchor.x
+        const curDy = pos.y - anchor.y
+        const sx = Math.abs(origDx) > 1 ? curDx / origDx : 1
+        const sy = Math.abs(origDy) > 1 ? curDy / origDy : 1
+        resizeScaleRef.current = { sx: Math.max(0.1, sx), sy: Math.max(0.1, sy) }
+        return
+      }
+
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
         if (e.cancelable) e.preventDefault()
         const dx = pos.x - dragStartPosRef.current.x
@@ -772,6 +959,65 @@ export default function EditablePage({
         }
         setActiveHandle(null)
         isDrawingRef.current = false
+        return
+      }
+
+      // Commit lasso resize
+      if (isResizingSelectionRef.current) {
+        isResizingSelectionRef.current = false
+        const { sx, sy } = resizeScaleRef.current
+        const anchor = resizeAnchorRef.current
+
+        if (sx !== 1 || sy !== 1) {
+          const oldStrokes = stateRef.current.page.strokes
+          const oldShapes = stateRef.current.page.shapes || []
+
+          const updatedStrokes = oldStrokes.map(s => {
+            if (stateRef.current.selectedStrokeIds.includes(s.id)) {
+              return {
+                ...s,
+                points: s.points.map(p => ({
+                  x: anchor.x + (p.x - anchor.x) * sx,
+                  y: anchor.y + (p.y - anchor.y) * sy
+                }))
+              }
+            }
+            return s
+          })
+
+          const updatedShapes = oldShapes.map(s => {
+            if (stateRef.current.selectedLassoShapeIds.includes(s.id)) {
+              return {
+                ...s,
+                x: anchor.x + (s.x - anchor.x) * sx,
+                y: anchor.y + (s.y - anchor.y) * sy,
+                width: Math.abs(s.width * sx),
+                height: Math.abs(s.height * sy)
+              }
+            }
+            return s
+          })
+
+          if (stateRef.current.onOperation) {
+            stateRef.current.onOperation({
+              type: 'bulk-update',
+              pageId: stateRef.current.page.id,
+              oldStrokes,
+              newStrokes: updatedStrokes,
+              oldShapes,
+              newShapes: updatedShapes
+            })
+          } else {
+            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: updatedStrokes, shapes: updatedShapes })
+          }
+        }
+
+        resizeScaleRef.current = { sx: 1, sy: 1 }
+        resizeHandleRef.current = null
+        originalSelectionBoxRef.current = null
+        originalSelectedStrokesRef.current = []
+        originalSelectedShapesRef.current = []
+        dragStartPosRef.current = null
         return
       }
 

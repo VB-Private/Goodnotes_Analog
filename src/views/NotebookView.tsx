@@ -100,6 +100,7 @@ export default function NotebookView() {
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([])
   const [selectedShapeType, setSelectedShapeType] = useState<ShapeType>('circle')
+  const [copyTrigger, setCopyTrigger] = useState(0)
   const hasAttemptedInitialScroll = useRef(false)
 
   // Attach ResizeObserver to measure the notes canvas area
@@ -874,6 +875,7 @@ export default function NotebookView() {
         onFillChange={setIsShapeFilled}
         lassoPicksShapes={lassoPicksShapes}
         onLassoPicksShapesChange={setLassoPicksShapes}
+        onCopy={() => setCopyTrigger(prev => prev + 1)}
       />
 
       {/* Main Content Area */}
@@ -1140,6 +1142,7 @@ export default function NotebookView() {
                         lassoPicksShapes={lassoPicksShapes}
                         onInputTypeChange={() => { }}
                         screenToCanvasFn={screenToCanvas}
+                        copyTrigger={copyTrigger}
                       />
                     </div>
                   ))
