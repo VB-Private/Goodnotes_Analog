@@ -30,7 +30,7 @@ function isStandalonePWA() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone ===
-      true
+    true
   );
 }
 
@@ -44,8 +44,7 @@ async function downloadOrSharePDF(data: Uint8Array, fileName: string) {
   if (shouldUseShareSheet && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({
-        files: [file],
-        title: pdfFileName,
+        files: [file]
       });
       return;
     } catch (error) {
@@ -71,10 +70,10 @@ function hexToRgb(hex: string) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16) / 255,
-        g: parseInt(result[2], 16) / 255,
-        b: parseInt(result[3], 16) / 255,
-      }
+      r: parseInt(result[1], 16) / 255,
+      g: parseInt(result[2], 16) / 255,
+      b: parseInt(result[3], 16) / 255,
+    }
     : { r: 0, g: 0, b: 0 };
 }
 
