@@ -51,18 +51,24 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                 shapeRendering="optimizeSpeed"
             >
                 {page.shapes?.map((shape) => {
+                    const cx = shape.x + shape.width / 2
+                    const cy = shape.y + shape.height / 2
+                    const rotationDeg = shape.rotation ? shape.rotation * (180 / Math.PI) : 0
+                    const transform = rotationDeg ? `rotate(${rotationDeg}, ${cx}, ${cy})` : undefined
+
                     if (shape.type === 'circle') {
                         return (
                             <ellipse
                                 key={shape.id}
-                                cx={shape.x + shape.width / 2}
-                                cy={shape.y + shape.height / 2}
+                                cx={cx}
+                                cy={cy}
                                 rx={Math.abs(shape.width / 2)}
                                 ry={Math.abs(shape.height / 2)}
                                 fill={shape.fillColor || "none"}
                                 fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
+                                transform={transform}
                             />
                         )
                     }
@@ -78,6 +84,7 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                                 fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
+                                transform={transform}
                             />
                         )
                     }
@@ -93,6 +100,7 @@ const PagePreview = React.memo(({ page, width, height }: PagePreviewProps) => {
                                 fillOpacity={shape.fillColor ? 0.25 : undefined}
                                 stroke={shape.color}
                                 strokeWidth={shape.strokeWidth}
+                                transform={transform}
                             />
                         )
                     }

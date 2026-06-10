@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, LineCapStyle } from "pdf-lib";
+import { PDFDocument, rgb, LineCapStyle, radians } from "pdf-lib";
 import download from "downloadjs";
 import type {
   Notebook,
@@ -252,40 +252,62 @@ function drawAnnotationsOnPage(
   for (const shape of pageContent.shapes || []) {
     const color = hexToRgb(shape.color);
     const fillColor = shape.fillColor ? hexToRgb(shape.fillColor) : undefined;
-    const { type, x, y, width: w, height: h, strokeWidth } = shape;
+    const { type, x, y, width: w, height: h, strokeWidth, rotation = 0 } = shape;
+
+    const theta = -rotation;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+
+    const cxPdf = (x + w / 2) * scaleX;
+    const cyPdf = height - (y + h / 2) * scaleY;
 
     // Draw Fill
     if (fillColor) {
       const fillRgb = rgb(fillColor.r, fillColor.g, fillColor.b);
       if (type === "circle") {
         pdfPage.drawEllipse({
-          x: (x + w / 2) * scaleX,
-          y: height - (y + h / 2) * scaleY,
+          x: cxPdf,
+          y: cyPdf,
           xScale: (w / 2) * scaleX,
           yScale: (h / 2) * scaleY,
           borderWidth: 0,
           color: fillRgb,
           opacity: 0.25,
+          rotate: radians(theta),
         });
       } else if (type === "square") {
+        const vx = (w / 2) * scaleX;
+        const vy = (h / 2) * scaleY;
+        const rx = vx * cosT - vy * sinT;
+        const ry = vx * sinT + vy * cosT;
+        const xRotated = cxPdf - rx;
+        const yRotated = cyPdf - ry;
+
         pdfPage.drawRectangle({
-          x: x * scaleX,
-          y: height - (y + h) * scaleY,
+          x: xRotated,
+          y: yRotated,
           width: w * scaleX,
           height: h * scaleY,
           borderWidth: 0,
           color: fillRgb,
           opacity: 0.25,
+          rotate: radians(theta),
         });
       } else if (type === "triangle") {
-        const p1x = (x + w / 2) * scaleX;
-        const p1y = height - y * scaleY;
-        const p2x = (x + w) * scaleX;
-        const p2y = height - (y + h) * scaleY;
-        const p3x = x * scaleX;
-        const p3y = height - (y + h) * scaleY;
+        const rotatePoint = (px: number, py: number) => {
+          const dx = px - cxPdf;
+          const dy = py - cyPdf;
+          return {
+            x: cxPdf + dx * cosT - dy * sinT,
+            y: cyPdf + dx * sinT + dy * cosT,
+          };
+        };
 
-        const path = `M ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y} Z`;
+        const p1 = rotatePoint((x + w / 2) * scaleX, height - y * scaleY);
+        const p2 = rotatePoint((x + w) * scaleX, height - (y + h) * scaleY);
+        const p3 = rotatePoint(x * scaleX, height - (y + h) * scaleY);
+
+        const path = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} Z`;
         pdfPage.drawSvgPath(path, {
           color: fillRgb,
           opacity: 0.25,
@@ -297,28 +319,46 @@ function drawAnnotationsOnPage(
     // Draw Stroke
     if (type === "circle") {
       pdfPage.drawEllipse({
-        x: (x + w / 2) * scaleX,
-        y: height - (y + h / 2) * scaleY,
+        x: cxPdf,
+        y: cyPdf,
         xScale: (w / 2) * scaleX,
         yScale: (h / 2) * scaleY,
         borderWidth: strokeWidth * scaleX,
         borderColor: rgb(color.r, color.g, color.b),
         opacity: 1, // Stroke is fully opaque
+        rotate: radians(theta),
       });
     } else if (type === "square") {
+      const vx = (w / 2) * scaleX;
+      const vy = (h / 2) * scaleY;
+      const rx = vx * cosT - vy * sinT;
+      const ry = vx * sinT + vy * cosT;
+      const xRotated = cxPdf - rx;
+      const yRotated = cyPdf - ry;
+
       pdfPage.drawRectangle({
-        x: x * scaleX,
-        y: height - (y + h) * scaleY,
+        x: xRotated,
+        y: yRotated,
         width: w * scaleX,
         height: h * scaleY,
         borderWidth: strokeWidth * scaleX,
         borderColor: rgb(color.r, color.g, color.b),
         opacity: 1,
+        rotate: radians(theta),
       });
     } else if (type === "triangle") {
-      const p1 = { x: (x + w / 2) * scaleX, y: height - y * scaleY };
-      const p2 = { x: (x + w) * scaleX, y: height - (y + h) * scaleY };
-      const p3 = { x: x * scaleX, y: height - (y + h) * scaleY };
+      const rotatePoint = (px: number, py: number) => {
+        const dx = px - cxPdf;
+        const dy = py - cyPdf;
+        return {
+          x: cxPdf + dx * cosT - dy * sinT,
+          y: cyPdf + dx * sinT + dy * cosT,
+        };
+      };
+
+      const p1 = rotatePoint((x + w / 2) * scaleX, height - y * scaleY);
+      const p2 = rotatePoint((x + w) * scaleX, height - (y + h) * scaleY);
+      const p3 = rotatePoint(x * scaleX, height - (y + h) * scaleY);
 
       pdfPage.drawLine({
         start: p1,
