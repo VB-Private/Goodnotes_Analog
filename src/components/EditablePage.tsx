@@ -1,28 +1,47 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
-import { PAGE_WIDTH, PAGE_HEIGHT } from '../constants'
-import type { Page, Stroke, StrokePoint, ToolType, TextField, Shape, ShapeType, Operation } from '../types'
-import { drawAllStrokes, drawStrokePath, drawShape } from '../utils/drawing'
-import { isStrokeInPolygon, getBoundingBox, isPointInBox, splitStroke, isStrokeHitByCircle, isShapeInPolygon } from '../utils/geometry'
-import Paper from './Paper'
-import TextFieldComponent from './TextFieldComponent'
+import { useRef, useEffect, useState, useMemo } from "react";
+import { PAGE_WIDTH, PAGE_HEIGHT } from "../constants";
+import type {
+  Page,
+  Stroke,
+  StrokePoint,
+  ToolType,
+  TextField,
+  Shape,
+  ShapeType,
+  Operation,
+} from "../types";
+import { drawAllStrokes, drawStrokePath, drawShape } from "../utils/drawing";
+import {
+  isStrokeInPolygon,
+  getBoundingBox,
+  isPointInBox,
+  splitStroke,
+  isStrokeHitByCircle,
+  isShapeInPolygon,
+} from "../utils/geometry";
+import Paper from "./Paper";
+import TextFieldComponent from "./TextFieldComponent";
 
 interface EditablePageProps {
-  page: Page
-  scale: number
-  activeTool: ToolType
-  activeColor: string
-  activeSize: number
-  selectedShapeType?: ShapeType
-  onUpdate: (page: Page) => void
-  onOperation?: (op: Operation) => void
-  onToolChange?: (tool: ToolType) => void
-  onInputTypeChange?: (type: 'pen' | 'touch' | null) => void
-  isShapeFilled?: boolean
-  width?: number
-  height?: number
-  screenToCanvasFn?: (screenX: number, screenY: number) => { x: number; y: number }
-  lassoPicksShapes?: boolean
-  copyTrigger?: number
+  page: Page;
+  scale: number;
+  activeTool: ToolType;
+  activeColor: string;
+  activeSize: number;
+  selectedShapeType?: ShapeType;
+  onUpdate: (page: Page) => void;
+  onOperation?: (op: Operation) => void;
+  onToolChange?: (tool: ToolType) => void;
+  onInputTypeChange?: (type: "pen" | "touch" | null) => void;
+  isShapeFilled?: boolean;
+  width?: number;
+  height?: number;
+  screenToCanvasFn?: (
+    screenX: number,
+    screenY: number,
+  ) => { x: number; y: number };
+  lassoPicksShapes?: boolean;
+  copyTrigger?: number;
 }
 
 export default function EditablePage({
@@ -31,7 +50,7 @@ export default function EditablePage({
   activeTool,
   activeColor,
   activeSize,
-  selectedShapeType = 'circle',
+  selectedShapeType = "circle",
   isShapeFilled = true,
   onUpdate,
   onOperation,
@@ -41,476 +60,651 @@ export default function EditablePage({
   height: customHeight,
   screenToCanvasFn,
   lassoPicksShapes = false,
-  copyTrigger = 0
+  copyTrigger = 0,
 }: EditablePageProps) {
-  const width = customWidth || PAGE_WIDTH
-  const height = customHeight || PAGE_HEIGHT
-  const strokeCanvasRef = useRef<HTMLCanvasElement>(null)
-  const laserCanvasRef = useRef<HTMLCanvasElement>(null)
-  const isDrawingRef = useRef(false)
-  const pointsRef = useRef<StrokePoint[]>([])
-  const lastLineWidthRef = useRef<number>(0)
-  const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
-  const cursorRef = useRef<HTMLDivElement>(null)
-  const laserStrokesRef = useRef<{ points: StrokePoint[], timestamp: number }[]>([])
-  const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([])
-  const [selectionBox, setSelectionBox] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null)
-  const isDraggingSelectionRef = useRef(false)
-  const dragStartPosRef = useRef<StrokePoint | null>(null)
-  const dragOffsetRef = useRef({ x: 0, y: 0 })
-  const holdTimeoutRef = useRef<number | null>(null)
-  const isStraightLineModeRef = useRef(false)
-  const [erasedStrokeIds, setErasedStrokeIds] = useState<string[]>([])
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
-  const [selectedLassoShapeIds, setSelectedLassoShapeIds] = useState<string[]>([])
-  const [activeHandle, setActiveHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | 'move' | null>(null)
-  const oldShapesRef = useRef<Shape[]>([])
+  const width = customWidth || PAGE_WIDTH;
+  const height = customHeight || PAGE_HEIGHT;
+  const strokeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const laserCanvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+  const pointsRef = useRef<StrokePoint[]>([]);
+  const lastLineWidthRef = useRef<number>(0);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const laserStrokesRef = useRef<
+    { points: StrokePoint[]; timestamp: number }[]
+  >([]);
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null>(null);
+  const isDraggingSelectionRef = useRef(false);
+  const dragStartPosRef = useRef<StrokePoint | null>(null);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const holdTimeoutRef = useRef<number | null>(null);
+  const isStraightLineModeRef = useRef(false);
+  const [erasedStrokeIds, setErasedStrokeIds] = useState<string[]>([]);
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedLassoShapeIds, setSelectedLassoShapeIds] = useState<string[]>(
+    [],
+  );
+  const [activeHandle, setActiveHandle] = useState<
+    "tl" | "tr" | "bl" | "br" | "move" | "rotate" | null
+  >(null);
+  const oldShapesRef = useRef<Shape[]>([]);
+  const rotateStartAngleRef = useRef(0);
+  const rotateStartRotationRef = useRef(0);
 
   // Lasso resize state
-  const isResizingSelectionRef = useRef(false)
-  const resizeHandleRef = useRef<'tl' | 'tr' | 'bl' | 'br' | null>(null)
-  const resizeAnchorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-  const resizeScaleRef = useRef({ sx: 1, sy: 1 })
-  const originalSelectionBoxRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null)
-  const originalSelectedStrokesRef = useRef<Stroke[]>([])
-  const originalSelectedShapesRef = useRef<Shape[]>([])
+  const isResizingSelectionRef = useRef(false);
+  const resizeHandleRef = useRef<"tl" | "tr" | "bl" | "br" | null>(null);
+  const resizeAnchorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const resizeScaleRef = useRef({ sx: 1, sy: 1 });
+  const originalSelectionBoxRef = useRef<{
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null>(null);
+  const originalSelectedStrokesRef = useRef<Stroke[]>([]);
+  const originalSelectedShapesRef = useRef<Shape[]>([]);
 
   // Store latest state in a ref to avoid re-binding event listeners frequently
-  const stateRef = useRef({ page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds })
+  const stateRef = useRef({
+    page,
+    activeTool,
+    activeColor,
+    activeSize,
+    selectedShapeType,
+    isShapeFilled,
+    selectedShapeId,
+    activeHandle,
+    selectedStrokeIds,
+    selectionBox,
+    erasedStrokeIds,
+    onUpdate,
+    onOperation,
+    onToolChange,
+    onInputTypeChange,
+    screenToCanvasFn,
+    lassoPicksShapes,
+    selectedLassoShapeIds,
+  });
   useEffect(() => {
-    stateRef.current = { page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds }
-  }, [page, activeTool, activeColor, activeSize, selectedShapeType, isShapeFilled, selectedShapeId, activeHandle, selectedStrokeIds, selectionBox, erasedStrokeIds, onUpdate, onOperation, onToolChange, onInputTypeChange, screenToCanvasFn, lassoPicksShapes, selectedLassoShapeIds])
+    stateRef.current = {
+      page,
+      activeTool,
+      activeColor,
+      activeSize,
+      selectedShapeType,
+      isShapeFilled,
+      selectedShapeId,
+      activeHandle,
+      selectedStrokeIds,
+      selectionBox,
+      erasedStrokeIds,
+      onUpdate,
+      onOperation,
+      onToolChange,
+      onInputTypeChange,
+      screenToCanvasFn,
+      lassoPicksShapes,
+      selectedLassoShapeIds,
+    };
+  }, [
+    page,
+    activeTool,
+    activeColor,
+    activeSize,
+    selectedShapeType,
+    isShapeFilled,
+    selectedShapeId,
+    activeHandle,
+    selectedStrokeIds,
+    selectionBox,
+    erasedStrokeIds,
+    onUpdate,
+    onOperation,
+    onToolChange,
+    onInputTypeChange,
+    screenToCanvasFn,
+    lassoPicksShapes,
+    selectedLassoShapeIds,
+  ]);
 
-  const selectedStrokes = useMemo(() =>
-    page.strokes.filter(s => selectedStrokeIds.includes(s.id)),
-    [page.strokes, selectedStrokeIds]
-  )
+  const selectedStrokes = useMemo(
+    () => page.strokes.filter((s) => selectedStrokeIds.includes(s.id)),
+    [page.strokes, selectedStrokeIds],
+  );
 
   useEffect(() => {
-    const selectedLassoShapes = page.shapes?.filter(s => selectedLassoShapeIds.includes(s.id)) || []
+    const selectedLassoShapes =
+      page.shapes?.filter((s) => selectedLassoShapeIds.includes(s.id)) || [];
 
     if (selectedStrokes.length > 0 || selectedLassoShapes.length > 0) {
-      const allPoints = selectedStrokes.flatMap(s => s.points)
-      selectedLassoShapes.forEach(s => {
-        allPoints.push({ x: s.x, y: s.y })
-        allPoints.push({ x: s.x + s.width, y: s.y + s.height })
-      })
-      setSelectionBox(getBoundingBox(allPoints))
+      const allPoints = selectedStrokes.flatMap((s) => s.points);
+      selectedLassoShapes.forEach((s) => {
+        allPoints.push({ x: s.x, y: s.y });
+        allPoints.push({ x: s.x + s.width, y: s.y + s.height });
+      });
+      setSelectionBox(getBoundingBox(allPoints));
     } else {
-      setSelectionBox(null)
+      setSelectionBox(null);
     }
-  }, [selectedStrokes, selectedLassoShapeIds, page.shapes])
+  }, [selectedStrokes, selectedLassoShapeIds, page.shapes]);
 
   // Handle Copy Selection
   useEffect(() => {
-    if (copyTrigger > 0 && (selectedStrokeIds.length > 0 || selectedLassoShapeIds.length > 0)) {
-      const offset = 20
-      
+    if (
+      copyTrigger > 0 &&
+      (selectedStrokeIds.length > 0 || selectedLassoShapeIds.length > 0)
+    ) {
+      const offset = 20;
+
       const clonedStrokes = page.strokes
-        .filter(s => selectedStrokeIds.includes(s.id))
-        .map(s => ({
+        .filter((s) => selectedStrokeIds.includes(s.id))
+        .map((s) => ({
           ...s,
           id: crypto.randomUUID(),
-          points: s.points.map(p => ({ x: p.x + offset, y: p.y + offset }))
-        }))
-        
+          points: s.points.map((p) => ({ x: p.x + offset, y: p.y + offset })),
+        }));
+
       const clonedShapes = (page.shapes || [])
-        .filter(s => selectedLassoShapeIds.includes(s.id))
-        .map(s => ({
+        .filter((s) => selectedLassoShapeIds.includes(s.id))
+        .map((s) => ({
           ...s,
           id: crypto.randomUUID(),
           x: s.x + offset,
-          y: s.y + offset
-        }))
-        
+          y: s.y + offset,
+        }));
+
       if (clonedStrokes.length > 0 || clonedShapes.length > 0) {
-        const updatedStrokes = [...page.strokes, ...clonedStrokes]
-        const updatedShapes = [...(page.shapes || []), ...clonedShapes]
-        
+        const updatedStrokes = [...page.strokes, ...clonedStrokes];
+        const updatedShapes = [...(page.shapes || []), ...clonedShapes];
+
         if (onOperation) {
           onOperation({
-            type: 'bulk-update',
+            type: "bulk-update",
             pageId: page.id,
             oldStrokes: page.strokes,
             newStrokes: updatedStrokes,
             oldShapes: page.shapes || [],
-            newShapes: updatedShapes
-          })
+            newShapes: updatedShapes,
+          });
         } else {
-          onUpdate({ ...page, strokes: updatedStrokes, shapes: updatedShapes })
+          onUpdate({ ...page, strokes: updatedStrokes, shapes: updatedShapes });
         }
-        
+
         // Select the new items
-        setSelectedStrokeIds(clonedStrokes.map(s => s.id))
-        setSelectedLassoShapeIds(clonedShapes.map(s => s.id))
+        setSelectedStrokeIds(clonedStrokes.map((s) => s.id));
+        setSelectedLassoShapeIds(clonedShapes.map((s) => s.id));
       }
     }
-  }, [copyTrigger])
+  }, [copyTrigger]);
 
   // Draw background strokes (saved ones)
   useEffect(() => {
-    const canvas = strokeCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = width * dpr
-    canvas.height = height * dpr
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-    ctx.scale(dpr, dpr)
+    const canvas = strokeCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(dpr, dpr);
 
-    ctx.clearRect(0, 0, width, height)
-    drawAllStrokes(ctx, page.strokes, null, undefined, page.shapes || [])
+    ctx.clearRect(0, 0, width, height);
+    drawAllStrokes(ctx, page.strokes, null, undefined, page.shapes || []);
 
     // Highlight selected shape
     if (selectedShapeId) {
-      const shape = page.shapes?.find(s => s.id === selectedShapeId)
+      const shape = page.shapes?.find((s) => s.id === selectedShapeId);
       if (shape) {
-        ctx.save()
-        ctx.strokeStyle = '#007AFF'
-        ctx.lineWidth = 1
-        ctx.setLineDash([5, 5])
-        ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8)
+        ctx.save();
+        ctx.strokeStyle = "#007AFF";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(
+          shape.x - 4,
+          shape.y - 4,
+          shape.width + 8,
+          shape.height + 8,
+        );
 
         // Draw resize handles
-        ctx.fillStyle = '#fff'
-        ctx.strokeStyle = '#007AFF'
-        ctx.setLineDash([])
-        ctx.lineWidth = 2
-        const handleSize = 8 / scale
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#007AFF";
+        ctx.setLineDash([]);
+        ctx.lineWidth = 2;
+        const handleSize = 8 / scale;
         const handles = [
           { x: shape.x, y: shape.y }, // Top-left
           { x: shape.x + shape.width, y: shape.y }, // Top-right
           { x: shape.x, y: shape.y + shape.height }, // Bottom-left
-          { x: shape.x + shape.width, y: shape.y + shape.height } // Bottom-right
-        ]
-        handles.forEach(h => {
-          ctx.beginPath()
-          ctx.arc(h.x, h.y, handleSize / 2, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-        })
+          { x: shape.x + shape.width, y: shape.y + shape.height }, // Bottom-right
+        ];
+        handles.forEach((h) => {
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, handleSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        // Draw rotate handle
+        const rotateX = shape.x + shape.width / 2;
+        const rotateY = shape.y - 28;
+        const rotateSize = 18 / scale;
+
+        ctx.beginPath();
+        ctx.strokeStyle = "#007AFF";
+        ctx.moveTo(shape.x + shape.width / 2, shape.y - 4);
+        ctx.lineTo(rotateX, rotateY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#007AFF";
+        ctx.arc(rotateX, rotateY, rotateSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
         // Draw delete handle (small X)
-        const deleteX = shape.x + shape.width + 20
-        const deleteY = shape.y - 20
-        const deleteSize = 20 / scale
+        const deleteX = shape.x + shape.width + 20;
+        const deleteY = shape.y - 20;
+        const deleteSize = 20 / scale;
 
-        ctx.beginPath()
-        ctx.fillStyle = '#FF3B30'
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 2
-        ctx.arc(deleteX, deleteY, deleteSize / 2, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.beginPath();
+        ctx.fillStyle = "#FF3B30";
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.arc(deleteX, deleteY, deleteSize / 2, 0, Math.PI * 2);
+        ctx.fill();
 
         // Draw X
-        const xLen = (deleteSize / 2) * 0.5
-        ctx.beginPath()
-        ctx.moveTo(deleteX - xLen, deleteY - xLen)
-        ctx.lineTo(deleteX + xLen, deleteY + xLen)
-        ctx.moveTo(deleteX + xLen, deleteY - xLen)
-        ctx.lineTo(deleteX - xLen, deleteY + xLen)
-        ctx.stroke()
+        const xLen = (deleteSize / 2) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(deleteX - xLen, deleteY - xLen);
+        ctx.lineTo(deleteX + xLen, deleteY + xLen);
+        ctx.moveTo(deleteX + xLen, deleteY - xLen);
+        ctx.lineTo(deleteX - xLen, deleteY + xLen);
+        ctx.stroke();
 
-        ctx.restore()
+        ctx.restore();
       }
     }
 
     // Highlight selected strokes and lasso-selected items
     if (selectedStrokeIds.length > 0 || selectedLassoShapeIds.length > 0) {
-      ctx.save()
+      ctx.save();
 
       if (selectedStrokeIds.length > 0) {
-        ctx.strokeStyle = '#007AFF'
-        ctx.lineWidth = 2
-        ctx.setLineDash([5, 5])
+        ctx.strokeStyle = "#007AFF";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
 
-        selectedStrokes.forEach(s => {
-          const box = getBoundingBox(s.points)
-          ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
-        })
+        selectedStrokes.forEach((s) => {
+          const box = getBoundingBox(s.points);
+          ctx.strokeRect(
+            box.minX - 4,
+            box.minY - 4,
+            box.maxX - box.minX + 8,
+            box.maxY - box.minY + 8,
+          );
+        });
       }
 
       if (selectedLassoShapeIds.length > 0) {
-        ctx.strokeStyle = '#007AFF'
-        ctx.lineWidth = 2
-        ctx.setLineDash([5, 5])
-        selectedLassoShapeIds.forEach(id => {
-          const shape = page.shapes?.find(s => s.id === id)
+        ctx.strokeStyle = "#007AFF";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        selectedLassoShapeIds.forEach((id) => {
+          const shape = page.shapes?.find((s) => s.id === id);
           if (shape) {
-            ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8)
+            ctx.strokeRect(
+              shape.x - 4,
+              shape.y - 4,
+              shape.width + 8,
+              shape.height + 8,
+            );
           }
-        })
+        });
       }
 
       if (selectionBox) {
-        ctx.strokeStyle = '#007AFF'
-        ctx.setLineDash([])
-        ctx.lineWidth = 1
-        const pad = 8
-        const bx = selectionBox.minX - pad
-        const by = selectionBox.minY - pad
-        const bw = (selectionBox.maxX - selectionBox.minX) + pad * 2
-        const bh = (selectionBox.maxY - selectionBox.minY) + pad * 2
-        ctx.strokeRect(bx, by, bw, bh)
+        ctx.strokeStyle = "#007AFF";
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+        const pad = 8;
+        const bx = selectionBox.minX - pad;
+        const by = selectionBox.minY - pad;
+        const bw = selectionBox.maxX - selectionBox.minX + pad * 2;
+        const bh = selectionBox.maxY - selectionBox.minY + pad * 2;
+        ctx.strokeRect(bx, by, bw, bh);
 
         // Draw resize handles at corners
-        const handleSize = 8 / scale
-        ctx.fillStyle = '#fff'
-        ctx.strokeStyle = '#007AFF'
-        ctx.lineWidth = 2
+        const handleSize = 8 / scale;
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#007AFF";
+        ctx.lineWidth = 2;
         const corners = [
-          { x: bx, y: by },             // tl
-          { x: bx + bw, y: by },        // tr
-          { x: bx, y: by + bh },        // bl
-          { x: bx + bw, y: by + bh }    // br
-        ]
-        corners.forEach(c => {
-          ctx.beginPath()
-          ctx.arc(c.x, c.y, handleSize / 2, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.stroke()
-        })
+          { x: bx, y: by }, // tl
+          { x: bx + bw, y: by }, // tr
+          { x: bx, y: by + bh }, // bl
+          { x: bx + bw, y: by + bh }, // br
+        ];
+        corners.forEach((c) => {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, handleSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
       }
-      ctx.restore()
+      ctx.restore();
     }
 
     // Highlight strokes marked for deletion by eraser
     if (erasedStrokeIds.length > 0) {
-      ctx.save()
-      ctx.strokeStyle = '#FF3B30'
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
-      erasedStrokeIds.forEach(id => {
-        const s = page.strokes.find(st => st.id === id)
+      ctx.save();
+      ctx.strokeStyle = "#FF3B30";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      erasedStrokeIds.forEach((id) => {
+        const s = page.strokes.find((st) => st.id === id);
         if (s) {
-          const box = getBoundingBox(s.points)
-          ctx.strokeRect(box.minX - 4, box.minY - 4, (box.maxX - box.minX) + 8, (box.maxY - box.minY) + 8)
+          const box = getBoundingBox(s.points);
+          ctx.strokeRect(
+            box.minX - 4,
+            box.minY - 4,
+            box.maxX - box.minX + 8,
+            box.maxY - box.minY + 8,
+          );
         }
-      })
-      ctx.restore()
+      });
+      ctx.restore();
     }
-  }, [page.strokes, page.shapes, scale, selectedStrokeIds, selectionBox, selectedStrokes, width, height, erasedStrokeIds, selectedShapeId])
+  }, [
+    page.strokes,
+    page.shapes,
+    scale,
+    selectedStrokeIds,
+    selectionBox,
+    selectedStrokes,
+    width,
+    height,
+    erasedStrokeIds,
+    selectedShapeId,
+  ]);
 
   // Laser animation loop
   useEffect(() => {
-    const canvas = laserCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = width * dpr
-    canvas.height = height * dpr
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-    ctx.scale(dpr, dpr)
+    const canvas = laserCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(dpr, dpr);
 
-    let animationFrameId: number
+    let animationFrameId: number;
 
     const render = () => {
-      const now = Date.now()
+      const now = Date.now();
 
       // Update the red to prune expired strokes
-      laserStrokesRef.current = laserStrokesRef.current.filter(s => now - s.timestamp < 2000)
-      const activeLaserStrokes = laserStrokesRef.current
+      laserStrokesRef.current = laserStrokesRef.current.filter(
+        (s) => now - s.timestamp < 2000,
+      );
+      const activeLaserStrokes = laserStrokesRef.current;
 
-      ctx.clearRect(0, 0, width, height)
+      ctx.clearRect(0, 0, width, height);
 
-      activeLaserStrokes.forEach(s => {
-        const age = now - s.timestamp
-        const opacity = Math.max(0, 1 - age / 2000)
+      activeLaserStrokes.forEach((s) => {
+        const age = now - s.timestamp;
+        const opacity = Math.max(0, 1 - age / 2000);
 
-        ctx.strokeStyle = `rgba(255, 0, 0, ${opacity})`
-        ctx.shadowBlur = 10 * opacity
-        ctx.shadowColor = 'red'
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-        ctx.lineWidth = 10
+        ctx.strokeStyle = `rgba(255, 0, 0, ${opacity})`;
+        ctx.shadowBlur = 10 * opacity;
+        ctx.shadowColor = "red";
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 10;
 
-        if (s.points.length < 2) return
+        if (s.points.length < 2) return;
 
-        ctx.beginPath()
-        ctx.moveTo(s.points[0].x, s.points[0].y)
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x, s.points[0].y);
         for (let i = 1; i < s.points.length; i++) {
-          ctx.lineTo(s.points[i].x, s.points[i].y)
+          ctx.lineTo(s.points[i].x, s.points[i].y);
         }
-        ctx.stroke()
+        ctx.stroke();
 
         // Reset shadow for next stroke
-        ctx.shadowBlur = 0
-      })
+        ctx.shadowBlur = 0;
+      });
 
       // Draw current stroke if active
-      if (isDrawingRef.current && (activeTool === 'laser' || activeTool === 'crayon' || activeTool === 'pen') && pointsRef.current.length >= 2) {
-        if (activeTool === 'laser') {
-          ctx.strokeStyle = 'rgba(255, 0, 0, 1)'
-          ctx.shadowBlur = 10
-          ctx.shadowColor = 'red'
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-          ctx.lineWidth = 10
+      if (
+        isDrawingRef.current &&
+        (activeTool === "laser" ||
+          activeTool === "crayon" ||
+          activeTool === "pen") &&
+        pointsRef.current.length >= 2
+      ) {
+        if (activeTool === "laser") {
+          ctx.strokeStyle = "rgba(255, 0, 0, 1)";
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = "red";
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.lineWidth = 10;
 
-          ctx.beginPath()
-          ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
+          ctx.beginPath();
+          ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y);
           for (let i = 1; i < pointsRef.current.length; i++) {
-            ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+            ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y);
           }
-          ctx.stroke()
-          ctx.shadowBlur = 0
-        } else if (activeTool === 'crayon' || activeTool === 'pen') {
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        } else if (activeTool === "crayon" || activeTool === "pen") {
           // Live drawing on overlay to avoid clearing the main canvas
           drawStrokePath(ctx, pointsRef.current, {
             color: stateRef.current.activeColor,
             size: stateRef.current.activeSize,
-            tool: activeTool
-          })
+            tool: activeTool,
+          });
         }
       }
 
       // Draw lasso path
-      if (activeTool === 'lasso' && pointsRef.current.length >= 2) {
-        ctx.strokeStyle = '#007AFF'
-        ctx.lineWidth = 2
-        ctx.setLineDash([5, 5])
-        ctx.beginPath()
-        ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
+      if (activeTool === "lasso" && pointsRef.current.length >= 2) {
+        ctx.strokeStyle = "#007AFF";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y);
         for (let i = 1; i < pointsRef.current.length; i++) {
-          ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y)
+          ctx.lineTo(pointsRef.current[i].x, pointsRef.current[i].y);
         }
-        if (!isDrawingRef.current) ctx.closePath()
-        ctx.stroke()
-        ctx.setLineDash([])
+        if (!isDrawingRef.current) ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
 
         // Fill area slightly
-        ctx.fillStyle = 'rgba(0, 122, 255, 0.1)'
-        ctx.fill()
+        ctx.fillStyle = "rgba(0, 122, 255, 0.1)";
+        ctx.fill();
       }
 
       // Draw lasso dragging preview
       if (isDraggingSelectionRef.current && dragOffsetRef.current) {
-        const { x: dx, y: dy } = dragOffsetRef.current
-        const currentSelectedStrokes = stateRef.current.page.strokes.filter(s => stateRef.current.selectedStrokeIds.includes(s.id))
-        currentSelectedStrokes.forEach(s => {
-          const offsetPoints = s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
-          drawStrokePath(ctx, offsetPoints, { color: s.color, size: s.size, tool: s.tool })
-        })
+        const { x: dx, y: dy } = dragOffsetRef.current;
+        const currentSelectedStrokes = stateRef.current.page.strokes.filter(
+          (s) => stateRef.current.selectedStrokeIds.includes(s.id),
+        );
+        currentSelectedStrokes.forEach((s) => {
+          const offsetPoints = s.points.map((p) => ({
+            ...p,
+            x: p.x + dx,
+            y: p.y + dy,
+          }));
+          drawStrokePath(ctx, offsetPoints, {
+            color: s.color,
+            size: s.size,
+            tool: s.tool,
+          });
+        });
 
-        const currentSelectedLassoShapes = stateRef.current.page.shapes?.filter(s => stateRef.current.selectedLassoShapeIds.includes(s.id)) || []
-        currentSelectedLassoShapes.forEach(s => {
-          drawShape(ctx, { ...s, x: s.x + dx, y: s.y + dy })
-        })
+        const currentSelectedLassoShapes =
+          stateRef.current.page.shapes?.filter((s) =>
+            stateRef.current.selectedLassoShapeIds.includes(s.id),
+          ) || [];
+        currentSelectedLassoShapes.forEach((s) => {
+          drawShape(ctx, { ...s, x: s.x + dx, y: s.y + dy });
+        });
       }
 
       // Draw lasso resize preview
       if (isResizingSelectionRef.current) {
-        const { sx, sy } = resizeScaleRef.current
-        const anchor = resizeAnchorRef.current
+        const { sx, sy } = resizeScaleRef.current;
+        const anchor = resizeAnchorRef.current;
 
-        originalSelectedStrokesRef.current.forEach(s => {
-          const scaledPoints = s.points.map(p => ({
+        originalSelectedStrokesRef.current.forEach((s) => {
+          const scaledPoints = s.points.map((p) => ({
             x: anchor.x + (p.x - anchor.x) * sx,
-            y: anchor.y + (p.y - anchor.y) * sy
-          }))
-          drawStrokePath(ctx, scaledPoints, { color: s.color, size: s.size, tool: s.tool })
-        })
+            y: anchor.y + (p.y - anchor.y) * sy,
+          }));
+          drawStrokePath(ctx, scaledPoints, {
+            color: s.color,
+            size: s.size,
+            tool: s.tool,
+          });
+        });
 
-        originalSelectedShapesRef.current.forEach(s => {
-          const newX = anchor.x + (s.x - anchor.x) * sx
-          const newY = anchor.y + (s.y - anchor.y) * sy
-          const newW = s.width * sx
-          const newH = s.height * sy
-          drawShape(ctx, { ...s, x: newX, y: newY, width: Math.abs(newW), height: Math.abs(newH) })
-        })
+        originalSelectedShapesRef.current.forEach((s) => {
+          const newX = anchor.x + (s.x - anchor.x) * sx;
+          const newY = anchor.y + (s.y - anchor.y) * sy;
+          const newW = s.width * sx;
+          const newH = s.height * sy;
+          drawShape(ctx, {
+            ...s,
+            x: newX,
+            y: newY,
+            width: Math.abs(newW),
+            height: Math.abs(newH),
+          });
+        });
 
         // Draw the resized bounding box
         if (originalSelectionBoxRef.current) {
-          const ob = originalSelectionBoxRef.current
-          const pad = 8
-          const newMinX = anchor.x + (ob.minX - pad - anchor.x) * sx
-          const newMinY = anchor.y + (ob.minY - pad - anchor.y) * sy
-          const newMaxX = anchor.x + (ob.maxX + pad - anchor.x) * sx
-          const newMaxY = anchor.y + (ob.maxY + pad - anchor.y) * sy
-          ctx.strokeStyle = '#007AFF'
-          ctx.lineWidth = 1
-          ctx.setLineDash([5, 5])
+          const ob = originalSelectionBoxRef.current;
+          const pad = 8;
+          const newMinX = anchor.x + (ob.minX - pad - anchor.x) * sx;
+          const newMinY = anchor.y + (ob.minY - pad - anchor.y) * sy;
+          const newMaxX = anchor.x + (ob.maxX + pad - anchor.x) * sx;
+          const newMaxY = anchor.y + (ob.maxY + pad - anchor.y) * sy;
+          ctx.strokeStyle = "#007AFF";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
           ctx.strokeRect(
             Math.min(newMinX, newMaxX),
             Math.min(newMinY, newMaxY),
             Math.abs(newMaxX - newMinX),
-            Math.abs(newMaxY - newMinY)
-          )
-          ctx.setLineDash([])
+            Math.abs(newMaxY - newMinY),
+          );
+          ctx.setLineDash([]);
         }
       }
 
-      animationFrameId = requestAnimationFrame(render)
-    }
+      animationFrameId = requestAnimationFrame(render);
+    };
 
-    animationFrameId = requestAnimationFrame(render)
-    return () => cancelAnimationFrame(animationFrameId)
-  }, [activeTool])
+    animationFrameId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [activeTool]);
 
   // Clear pointsRef when switching tools to avoid cross-tool trails
   useEffect(() => {
-    pointsRef.current = []
-    isDrawingRef.current = false
-    if (activeTool !== 'lasso') {
-      setSelectedStrokeIds([])
-      setSelectedLassoShapeIds([])
+    pointsRef.current = [];
+    isDrawingRef.current = false;
+    if (activeTool !== "lasso") {
+      setSelectedStrokeIds([]);
+      setSelectedLassoShapeIds([]);
     }
-  }, [activeTool])
+  }, [activeTool]);
 
   // High-performance event listeners
   useEffect(() => {
-    const canvas = strokeCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const canvas = strokeCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const forceEl = document.getElementById('force')
-    const touchesEl = document.getElementById('touches')
-    const requestIdleCallback = (window as any).requestIdleCallback || ((fn: any) => setTimeout(fn, 1))
+    const forceEl = document.getElementById("force");
+    const touchesEl = document.getElementById("touches");
+    const requestIdleCallback =
+      (window as any).requestIdleCallback || ((fn: any) => setTimeout(fn, 1));
 
     function getPos(e: TouchEvent | MouseEvent) {
-      const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : (e as MouseEvent)
-      const round = (n: number) => Math.round(n * 10) / 10
+      const touch = (e as TouchEvent).touches
+        ? (e as TouchEvent).touches[0]
+        : (e as MouseEvent);
+      const round = (n: number) => Math.round(n * 10) / 10;
 
       // getBoundingClientRect already accounts for all CSS transforms (scale, translate)
       // on ancestor elements, so the same math works whether zoomed or not.
-      const rect = canvas!.getBoundingClientRect()
-      const scaleX = width / rect.width
-      const scaleY = height / rect.height
+      const rect = canvas!.getBoundingClientRect();
+      const scaleX = width / rect.width;
+      const scaleY = height / rect.height;
       return {
         x: round((touch.clientX - rect.left) * scaleX),
-        y: round((touch.clientY - rect.top) * scaleY)
-      }
+        y: round((touch.clientY - rect.top) * scaleY),
+      };
     }
 
-
-
     const handleDown = (e: TouchEvent | MouseEvent) => {
-      const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
-      const isPen = (e as any).pointerType === 'pen' || (touch && (touch as any).touchType === 'stylus')
+      const touch = (e as TouchEvent).touches
+        ? (e as TouchEvent).touches[0]
+        : null;
+      const isPen =
+        (e as any).pointerType === "pen" ||
+        (touch && (touch as any).touchType === "stylus");
       // Only process mouse events if it's the primary/left button (button === 0)
-      const isMouse = e instanceof MouseEvent &&
-        !(e instanceof PointerEvent && (e as any).pointerType === 'touch') &&
-        e.button === 0
+      const isMouse =
+        e instanceof MouseEvent &&
+        !(e instanceof PointerEvent && (e as any).pointerType === "touch") &&
+        e.button === 0;
 
       // Restrict drawing tools to Pen/Mouse only
-      const isDrawingTool = ['pen', 'crayon', 'eraser', 'lasso', 'laser'].includes(stateRef.current.activeTool)
-      const allowedInput = isPen || isMouse
+      const isDrawingTool = [
+        "pen",
+        "crayon",
+        "eraser",
+        "lasso",
+        "laser",
+      ].includes(stateRef.current.activeTool);
+      const allowedInput = isPen || isMouse;
 
-      const shouldProcess = stateRef.current.activeTool === 'text' || stateRef.current.activeTool === 'figures' || stateRef.current.activeTool === 'select' || (isDrawingTool && allowedInput)
+      const shouldProcess =
+        stateRef.current.activeTool === "text" ||
+        stateRef.current.activeTool === "figures" ||
+        stateRef.current.activeTool === "select" ||
+        (isDrawingTool && allowedInput);
 
       if (stateRef.current.onInputTypeChange) {
-        stateRef.current.onInputTypeChange(isPen || isMouse ? 'pen' : 'touch')
+        stateRef.current.onInputTypeChange(isPen || isMouse ? "pen" : "touch");
       }
 
-      if (!shouldProcess) return
+      if (!shouldProcess) return;
 
-      if (stateRef.current.activeTool === 'figures') {
-        const pos = getPos(e)
+      if (stateRef.current.activeTool === "figures") {
+        const pos = getPos(e);
         const newShape: Shape = {
           id: crypto.randomUUID(),
           type: stateRef.current.selectedShapeType,
@@ -519,275 +713,369 @@ export default function EditablePage({
           width: 100,
           height: 100,
           color: stateRef.current.activeColor,
-          fillColor: stateRef.current.isShapeFilled ? stateRef.current.activeColor : undefined,
-          strokeWidth: stateRef.current.activeSize
-        }
+          fillColor: stateRef.current.isShapeFilled
+            ? stateRef.current.activeColor
+            : undefined,
+          strokeWidth: stateRef.current.activeSize,
+        };
         stateRef.current.onUpdate({
           ...stateRef.current.page,
-          shapes: [...(stateRef.current.page.shapes || []), newShape]
-        })
-        if (stateRef.current.onToolChange) stateRef.current.onToolChange('select')
-        setSelectedShapeId(newShape.id)
-        if (e.cancelable) e.preventDefault()
-        return
+          shapes: [...(stateRef.current.page.shapes || []), newShape],
+        });
+        if (stateRef.current.onToolChange)
+          stateRef.current.onToolChange("select");
+        setSelectedShapeId(newShape.id);
+        if (e.cancelable) e.preventDefault();
+        return;
       }
 
-      if (stateRef.current.activeTool === 'select') {
-        const pos = getPos(e)
+      if (stateRef.current.activeTool === "select") {
+        const pos = getPos(e);
         // 1. Check handles of the ALREADY selected shape first
         if (stateRef.current.selectedShapeId) {
-          const shape = stateRef.current.page.shapes?.find(s => s.id === stateRef.current.selectedShapeId)
+          const shape = stateRef.current.page.shapes?.find(
+            (s) => s.id === stateRef.current.selectedShapeId,
+          );
           if (shape) {
-            const handleSize = 25 / scale // hit area
+            const handleSize = 25 / scale; // hit area
             const handles = {
               tl: { x: shape.x, y: shape.y },
               tr: { x: shape.x + shape.width, y: shape.y },
               bl: { x: shape.x, y: shape.y + shape.height },
-              br: { x: shape.x + shape.width, y: shape.y + shape.height }
-            }
+              br: { x: shape.x + shape.width, y: shape.y + shape.height },
+            };
             for (const [id, h] of Object.entries(handles)) {
               if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleSize / 2) {
-                setActiveHandle(id as any)
-                oldShapesRef.current = [...(page.shapes || [])]
-                isDrawingRef.current = true
-                if (e.cancelable) e.preventDefault()
-                return
+                setActiveHandle(id as any);
+                oldShapesRef.current = [...(page.shapes || [])];
+                isDrawingRef.current = true;
+                if (e.cancelable) e.preventDefault();
+                return;
               }
             }
 
+            // Check for rotate handle
+            const rotateX = shape.x + shape.width / 2;
+            const rotateY = shape.y - 28;
+            const rotateSize = 30 / scale; // hit area
+
+            if (Math.hypot(pos.x - rotateX, pos.y - rotateY) < rotateSize / 2) {
+              setActiveHandle("rotate");
+              oldShapesRef.current = [...(page.shapes || [])];
+              rotateStartAngleRef.current = Math.atan2(
+                pos.y - (shape.y + shape.height / 2),
+                pos.x - (shape.x + shape.width / 2),
+              );
+              rotateStartRotationRef.current = shape.rotation || 0;
+              isDrawingRef.current = true;
+              if (e.cancelable) e.preventDefault();
+              return;
+            }
+
             // Check for delete handle
-            const deleteX = shape.x + shape.width + 20
-            const deleteY = shape.y - 20
-            const deleteSize = 30 / scale // hit area
+            const deleteX = shape.x + shape.width + 20;
+            const deleteY = shape.y - 20;
+            const deleteSize = 30 / scale; // hit area
 
             if (Math.hypot(pos.x - deleteX, pos.y - deleteY) < deleteSize / 2) {
-              const newShapes = (stateRef.current.page.shapes || []).filter(s => s.id !== shape.id)
+              const newShapes = (stateRef.current.page.shapes || []).filter(
+                (s) => s.id !== shape.id,
+              );
 
               if (stateRef.current.onOperation) {
                 stateRef.current.onOperation({
-                  type: 'bulk-update',
+                  type: "bulk-update",
                   pageId: stateRef.current.page.id,
                   oldStrokes: stateRef.current.page.strokes,
                   newStrokes: stateRef.current.page.strokes,
                   oldShapes: stateRef.current.page.shapes || [],
-                  newShapes
-                })
+                  newShapes,
+                });
               } else {
-                stateRef.current.onUpdate({ ...stateRef.current.page, shapes: newShapes })
+                stateRef.current.onUpdate({
+                  ...stateRef.current.page,
+                  shapes: newShapes,
+                });
               }
 
-              setSelectedShapeId(null)
-              if (e.cancelable) e.preventDefault()
-              return
+              setSelectedShapeId(null);
+              if (e.cancelable) e.preventDefault();
+              return;
             }
           }
         }
 
         // 2. Hit test for ANY shape (including selecting a new one or moving the current one)
-        const hitShape = [...(stateRef.current.page.shapes || [])].reverse().find(s =>
-          pos.x >= s.x - 5 && pos.x <= s.x + s.width + 5 &&
-          pos.y >= s.y - 5 && pos.y <= s.y + s.height + 5
-        )
+        const hitShape = [...(stateRef.current.page.shapes || [])]
+          .reverse()
+          .find(
+            (s) =>
+              pos.x >= s.x - 5 &&
+              pos.x <= s.x + s.width + 5 &&
+              pos.y >= s.y - 5 &&
+              pos.y <= s.y + s.height + 5,
+          );
 
         if (hitShape) {
           if (stateRef.current.selectedShapeId !== hitShape.id) {
-            setSelectedShapeId(hitShape.id)
+            setSelectedShapeId(hitShape.id);
           }
           // Start move drag immediately
-          setActiveHandle('move')
-          oldShapesRef.current = [...(stateRef.current.page.shapes || [])]
-          dragStartPosRef.current = pos
-          dragOffsetRef.current = { x: pos.x - hitShape.x, y: pos.y - hitShape.y }
-          isDrawingRef.current = true
+          setActiveHandle("move");
+          oldShapesRef.current = [...(stateRef.current.page.shapes || [])];
+          dragStartPosRef.current = pos;
+          dragOffsetRef.current = {
+            x: pos.x - hitShape.x,
+            y: pos.y - hitShape.y,
+          };
+          isDrawingRef.current = true;
         } else {
-          setSelectedShapeId(null)
-          setActiveHandle(null)
+          setSelectedShapeId(null);
+          setActiveHandle(null);
         }
-        if (e.cancelable) e.preventDefault()
-        return
+        if (e.cancelable) e.preventDefault();
+        return;
       }
 
-      if (stateRef.current.activeTool === 'text') {
-        const pos = getPos(e)
+      if (stateRef.current.activeTool === "text") {
+        const pos = getPos(e);
         const newTextField: TextField = {
           id: crypto.randomUUID(),
           x: pos.x,
           y: pos.y,
-          text: '',
+          text: "",
           color: stateRef.current.activeColor,
-          fontSize: stateRef.current.activeSize
-        }
-        setJustCreatedId(newTextField.id)
+          fontSize: stateRef.current.activeSize,
+        };
+        setJustCreatedId(newTextField.id);
         stateRef.current.onUpdate({
           ...stateRef.current.page,
-          textFields: [...(stateRef.current.page.textFields || []), newTextField]
-        })
-        if (e.cancelable) e.preventDefault()
-        return
+          textFields: [
+            ...(stateRef.current.page.textFields || []),
+            newTextField,
+          ],
+        });
+        if (e.cancelable) e.preventDefault();
+        return;
       }
 
-      const pos = getPos(e)
+      const pos = getPos(e);
 
-      if (stateRef.current.activeTool === 'lasso') {
+      if (stateRef.current.activeTool === "lasso") {
         // Check if clicking on a resize handle first
         if (stateRef.current.selectionBox) {
-          const box = stateRef.current.selectionBox
-          const pad = 8
-          const bx = box.minX - pad
-          const by = box.minY - pad
-          const bw = (box.maxX - box.minX) + pad * 2
-          const bh = (box.maxY - box.minY) + pad * 2
-          const handleHitSize = 20 / scale
-          const handleCorners: { id: 'tl' | 'tr' | 'bl' | 'br'; x: number; y: number; anchorX: number; anchorY: number }[] = [
-            { id: 'tl', x: bx, y: by, anchorX: bx + bw, anchorY: by + bh },
-            { id: 'tr', x: bx + bw, y: by, anchorX: bx, anchorY: by + bh },
-            { id: 'bl', x: bx, y: by + bh, anchorX: bx + bw, anchorY: by },
-            { id: 'br', x: bx + bw, y: by + bh, anchorX: bx, anchorY: by },
-          ]
+          const box = stateRef.current.selectionBox;
+          const pad = 8;
+          const bx = box.minX - pad;
+          const by = box.minY - pad;
+          const bw = box.maxX - box.minX + pad * 2;
+          const bh = box.maxY - box.minY + pad * 2;
+          const handleHitSize = 20 / scale;
+          const handleCorners: {
+            id: "tl" | "tr" | "bl" | "br";
+            x: number;
+            y: number;
+            anchorX: number;
+            anchorY: number;
+          }[] = [
+            { id: "tl", x: bx, y: by, anchorX: bx + bw, anchorY: by + bh },
+            { id: "tr", x: bx + bw, y: by, anchorX: bx, anchorY: by + bh },
+            { id: "bl", x: bx, y: by + bh, anchorX: bx + bw, anchorY: by },
+            { id: "br", x: bx + bw, y: by + bh, anchorX: bx, anchorY: by },
+          ];
 
           for (const h of handleCorners) {
             if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleHitSize) {
-              isResizingSelectionRef.current = true
-              resizeHandleRef.current = h.id
-              resizeAnchorRef.current = { x: h.anchorX, y: h.anchorY }
-              originalSelectionBoxRef.current = { ...box }
-              resizeScaleRef.current = { sx: 1, sy: 1 }
-              dragStartPosRef.current = pos
+              isResizingSelectionRef.current = true;
+              resizeHandleRef.current = h.id;
+              resizeAnchorRef.current = { x: h.anchorX, y: h.anchorY };
+              originalSelectionBoxRef.current = { ...box };
+              resizeScaleRef.current = { sx: 1, sy: 1 };
+              dragStartPosRef.current = pos;
 
               // Snapshot current selected items for preview
-              originalSelectedStrokesRef.current = stateRef.current.page.strokes
-                .filter(s => stateRef.current.selectedStrokeIds.includes(s.id))
-              originalSelectedShapesRef.current = (stateRef.current.page.shapes || [])
-                .filter(s => stateRef.current.selectedLassoShapeIds.includes(s.id))
+              originalSelectedStrokesRef.current =
+                stateRef.current.page.strokes.filter((s) =>
+                  stateRef.current.selectedStrokeIds.includes(s.id),
+                );
+              originalSelectedShapesRef.current = (
+                stateRef.current.page.shapes || []
+              ).filter((s) =>
+                stateRef.current.selectedLassoShapeIds.includes(s.id),
+              );
 
               // Redraw without selected items
-              const canvas = strokeCanvasRef.current
-              const ctx = canvas?.getContext('2d')
+              const canvas = strokeCanvasRef.current;
+              const ctx = canvas?.getContext("2d");
               if (ctx) {
-                ctx.clearRect(0, 0, width, height)
-                const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
-                const unselectedShapes = (stateRef.current.page.shapes || []).filter(s => !stateRef.current.selectedLassoShapeIds.includes(s.id))
-                drawAllStrokes(ctx, unselectedStrokes, null, undefined, unselectedShapes)
+                ctx.clearRect(0, 0, width, height);
+                const unselectedStrokes = stateRef.current.page.strokes.filter(
+                  (s) => !stateRef.current.selectedStrokeIds.includes(s.id),
+                );
+                const unselectedShapes = (
+                  stateRef.current.page.shapes || []
+                ).filter(
+                  (s) => !stateRef.current.selectedLassoShapeIds.includes(s.id),
+                );
+                drawAllStrokes(
+                  ctx,
+                  unselectedStrokes,
+                  null,
+                  undefined,
+                  unselectedShapes,
+                );
               }
 
-              if (e.cancelable) e.preventDefault()
-              return
+              if (e.cancelable) e.preventDefault();
+              return;
             }
           }
         }
 
         // Check if clicking inside current selection to drag
-        if (stateRef.current.selectionBox && isPointInBox(pos, stateRef.current.selectionBox, 20)) {
-          isDraggingSelectionRef.current = true
-          dragStartPosRef.current = pos
+        if (
+          stateRef.current.selectionBox &&
+          isPointInBox(pos, stateRef.current.selectionBox, 20)
+        ) {
+          isDraggingSelectionRef.current = true;
+          dragStartPosRef.current = pos;
 
           // Redraw main canvas without selected strokes to avoid flickering during move
-          const canvas = strokeCanvasRef.current
-          const ctx = canvas?.getContext('2d')
+          const canvas = strokeCanvasRef.current;
+          const ctx = canvas?.getContext("2d");
           if (ctx) {
-          ctx.clearRect(0, 0, width, height)
-          const unselectedStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.selectedStrokeIds.includes(s.id))
-          const unselectedShapes = (stateRef.current.page.shapes || []).filter(s => !stateRef.current.selectedLassoShapeIds.includes(s.id))
-          drawAllStrokes(ctx, unselectedStrokes, null, undefined, unselectedShapes)
-        }
+            ctx.clearRect(0, 0, width, height);
+            const unselectedStrokes = stateRef.current.page.strokes.filter(
+              (s) => !stateRef.current.selectedStrokeIds.includes(s.id),
+            );
+            const unselectedShapes = (
+              stateRef.current.page.shapes || []
+            ).filter(
+              (s) => !stateRef.current.selectedLassoShapeIds.includes(s.id),
+            );
+            drawAllStrokes(
+              ctx,
+              unselectedStrokes,
+              null,
+              undefined,
+              unselectedShapes,
+            );
+          }
 
-          if (e.cancelable) e.preventDefault()
-          return
-
+          if (e.cancelable) e.preventDefault();
+          return;
         } else {
           // Start a new lasso selection
-          setSelectedStrokeIds([])
-          setSelectedLassoShapeIds([])
+          setSelectedStrokeIds([]);
+          setSelectedLassoShapeIds([]);
         }
       }
 
-      if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
-        setErasedStrokeIds([])
-        const diameter = stateRef.current.activeSize
-        cursorRef.current.style.display = 'block'
-        cursorRef.current.style.width = `${diameter}px`
-        cursorRef.current.style.height = `${diameter}px`
-        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
-        cursorRef.current.style.marginTop = `${-diameter / 2}px`
-        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      if (cursorRef.current && stateRef.current.activeTool === "eraser") {
+        setErasedStrokeIds([]);
+        const diameter = stateRef.current.activeSize;
+        cursorRef.current.style.display = "block";
+        cursorRef.current.style.width = `${diameter}px`;
+        cursorRef.current.style.height = `${diameter}px`;
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`;
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`;
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
       }
 
-      isDrawingRef.current = true
-      pointsRef.current = [pos]
-      lastLineWidthRef.current = activeSize
+      isDrawingRef.current = true;
+      pointsRef.current = [pos];
+      lastLineWidthRef.current = activeSize;
 
       // Start hold detection for drawing tools
-      if (activeTool === 'pen' || activeTool === 'crayon') {
-        isStraightLineModeRef.current = false
+      if (activeTool === "pen" || activeTool === "crayon") {
+        isStraightLineModeRef.current = false;
 
         const timeoutId = window.setTimeout(() => {
           if (isDrawingRef.current && pointsRef.current.length >= 2) {
-            isStraightLineModeRef.current = true
+            isStraightLineModeRef.current = true;
 
             // Snap to straight line
-            const startPoint = pointsRef.current[0]
-            const endPoint = pointsRef.current[pointsRef.current.length - 1]
-            pointsRef.current = [startPoint, endPoint]
+            const startPoint = pointsRef.current[0];
+            const endPoint = pointsRef.current[pointsRef.current.length - 1];
+            pointsRef.current = [startPoint, endPoint];
           }
-        }, 500) // 0.5 second hold
-        holdTimeoutRef.current = timeoutId
+        }, 500); // 0.5 second hold
+        holdTimeoutRef.current = timeoutId;
       }
 
-      if (e.cancelable) e.preventDefault()
-    }
+      if (e.cancelable) e.preventDefault();
+    };
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
-      const pos = getPos(e)
-      const canvas = strokeCanvasRef.current
+      const pos = getPos(e);
+      const canvas = strokeCanvasRef.current;
 
       // Eraser cursor logic
-      if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
-        const diameter = stateRef.current.activeSize
-        cursorRef.current.style.display = 'block'
-        cursorRef.current.style.width = `${diameter}px`
-        cursorRef.current.style.height = `${diameter}px`
-        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
-        cursorRef.current.style.marginTop = `${-diameter / 2}px`
-        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      if (cursorRef.current && stateRef.current.activeTool === "eraser") {
+        const diameter = stateRef.current.activeSize;
+        cursorRef.current.style.display = "block";
+        cursorRef.current.style.width = `${diameter}px`;
+        cursorRef.current.style.height = `${diameter}px`;
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`;
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`;
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
       }
 
-      if (!canvas) return
+      if (!canvas) return;
 
       // Dynamic cursor for Select Tool
-      if (stateRef.current.activeTool === 'select') {
-        let cursor = 'default'
+      if (stateRef.current.activeTool === "select") {
+        let cursor = "default";
 
         // 1. Check selected shape handles/delete button
         if (stateRef.current.selectedShapeId) {
-          const shape = stateRef.current.page.shapes?.find(s => s.id === stateRef.current.selectedShapeId)
+          const shape = stateRef.current.page.shapes?.find(
+            (s) => s.id === stateRef.current.selectedShapeId,
+          );
           if (shape) {
-            // Check delete handle
-            const deleteX = shape.x + shape.width + 20
-            const deleteY = shape.y - 20
-            const deleteSize = 30 / scale
-            if (Math.hypot(pos.x - deleteX, pos.y - deleteY) < deleteSize / 2) {
-              cursor = 'pointer'
+            // Check rotate handle
+            const rotateX = shape.x + shape.width / 2;
+            const rotateY = shape.y - 28;
+            const rotateSize = 30 / scale;
+            if (Math.hypot(pos.x - rotateX, pos.y - rotateY) < rotateSize / 2) {
+              cursor = "grab";
             } else {
-              // Check resize handles
-              const handleSize = 25 / scale
-              const handles = {
-                tl: { x: shape.x, y: shape.y },
-                tr: { x: shape.x + shape.width, y: shape.y },
-                bl: { x: shape.x, y: shape.y + shape.height },
-                br: { x: shape.x + shape.width, y: shape.y + shape.height }
-              }
-              for (const [id, h] of Object.entries(handles)) {
-                if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleSize / 2) {
-                  if (id === 'tl' || id === 'br') cursor = 'nwse-resize'
-                  else if (id === 'tr' || id === 'bl') cursor = 'nesw-resize'
-                  break
+              // Check delete handle
+              const deleteX = shape.x + shape.width + 20;
+              const deleteY = shape.y - 20;
+              const deleteSize = 30 / scale;
+              if (
+                Math.hypot(pos.x - deleteX, pos.y - deleteY) <
+                deleteSize / 2
+              ) {
+                cursor = "pointer";
+              } else {
+                // Check resize handles
+                const handleSize = 25 / scale;
+                const handles = {
+                  tl: { x: shape.x, y: shape.y },
+                  tr: { x: shape.x + shape.width, y: shape.y },
+                  bl: { x: shape.x, y: shape.y + shape.height },
+                  br: { x: shape.x + shape.width, y: shape.y + shape.height },
+                };
+                for (const [id, h] of Object.entries(handles)) {
+                  if (Math.hypot(pos.x - h.x, pos.y - h.y) < handleSize / 2) {
+                    if (id === "tl" || id === "br") cursor = "nwse-resize";
+                    else if (id === "tr" || id === "bl") cursor = "nesw-resize";
+                    break;
+                  }
                 }
-              }
 
-              // Check inside shape for move
-              if (cursor === 'default') {
-                if (pos.x >= shape.x && pos.x <= shape.x + shape.width && pos.y >= shape.y && pos.y <= shape.y + shape.height) {
-                  cursor = 'move'
+                // Check inside shape for move
+                if (cursor === "default") {
+                  if (
+                    pos.x >= shape.x &&
+                    pos.x <= shape.x + shape.width &&
+                    pos.y >= shape.y &&
+                    pos.y <= shape.y + shape.height
+                  ) {
+                    cursor = "move";
+                  }
                 }
               }
             }
@@ -795,413 +1083,498 @@ export default function EditablePage({
         }
 
         // 2. Check unselected shapes
-        if (cursor === 'default') {
-          const hitShape = [...(stateRef.current.page.shapes || [])].reverse().find(s =>
-            pos.x >= s.x - 5 && pos.x <= s.x + s.width + 5 &&
-            pos.y >= s.y - 5 && pos.y <= s.y + s.height + 5
-          )
-          if (hitShape) cursor = 'move'
+        if (cursor === "default") {
+          const hitShape = [...(stateRef.current.page.shapes || [])]
+            .reverse()
+            .find(
+              (s) =>
+                pos.x >= s.x - 5 &&
+                pos.x <= s.x + s.width + 5 &&
+                pos.y >= s.y - 5 &&
+                pos.y <= s.y + s.height + 5,
+            );
+          if (hitShape) cursor = "move";
         }
 
-        canvas.style.cursor = cursor
+        canvas.style.cursor = cursor;
       } else {
         // Revert to tool defaults if not select
-        const tool = stateRef.current.activeTool
-        if (tool === 'text') canvas.style.cursor = 'text'
-        else if (tool === 'eraser') canvas.style.cursor = 'none'
-        else canvas.style.cursor = 'crosshair'
+        const tool = stateRef.current.activeTool;
+        if (tool === "text") canvas.style.cursor = "text";
+        else if (tool === "eraser") canvas.style.cursor = "none";
+        else canvas.style.cursor = "crosshair";
       }
-    }
+    };
 
     const handlePointerLeave = () => {
       if (cursorRef.current) {
-        cursorRef.current.style.display = 'none'
+        cursorRef.current.style.display = "none";
       }
-    }
+    };
 
     const handleMove = (e: TouchEvent | MouseEvent) => {
-      const pos = getPos(e)
+      const pos = getPos(e);
 
-      if (stateRef.current.activeTool === 'select' && stateRef.current.selectedShapeId && stateRef.current.activeHandle) {
-        const updatedShapes = stateRef.current.page.shapes.map(s => {
-          if (s.id !== stateRef.current.selectedShapeId) return s
-          let { x, y, width, height } = s
-          if (stateRef.current.activeHandle === 'move') {
-            x = pos.x - dragOffsetRef.current.x
-            y = pos.y - dragOffsetRef.current.y
+      if (
+        stateRef.current.activeTool === "select" &&
+        stateRef.current.selectedShapeId &&
+        stateRef.current.activeHandle
+      ) {
+        const updatedShapes = stateRef.current.page.shapes.map((s) => {
+          if (s.id !== stateRef.current.selectedShapeId) return s;
+          let { x, y, width, height } = s;
+          if (stateRef.current.activeHandle === "move") {
+            x = pos.x - dragOffsetRef.current.x;
+            y = pos.y - dragOffsetRef.current.y;
+          } else if (stateRef.current.activeHandle === "rotate") {
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const currentAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+            return {
+              ...s,
+              rotation:
+                rotateStartRotationRef.current +
+                currentAngle -
+                rotateStartAngleRef.current,
+            };
           } else {
-            if (stateRef.current.activeHandle === 'tl') {
-              width = width + (x - pos.x)
-              height = height + (y - pos.y)
-              x = pos.x
-              y = pos.y
-            } else if (stateRef.current.activeHandle === 'tr') {
-              width = pos.x - x
-              height = height + (y - pos.y)
-              y = pos.y
-            } else if (stateRef.current.activeHandle === 'bl') {
-              width = width + (x - pos.x)
-              x = pos.x
-              height = pos.y - y
-            } else if (stateRef.current.activeHandle === 'br') {
-              width = pos.x - x
-              height = pos.y - y
+            if (stateRef.current.activeHandle === "tl") {
+              width = width + (x - pos.x);
+              height = height + (y - pos.y);
+              x = pos.x;
+              y = pos.y;
+            } else if (stateRef.current.activeHandle === "tr") {
+              width = pos.x - x;
+              height = height + (y - pos.y);
+              y = pos.y;
+            } else if (stateRef.current.activeHandle === "bl") {
+              width = width + (x - pos.x);
+              x = pos.x;
+              height = pos.y - y;
+            } else if (stateRef.current.activeHandle === "br") {
+              width = pos.x - x;
+              height = pos.y - y;
             }
           }
-          return { ...s, x, y, width, height }
-        })
-        stateRef.current.onUpdate({ ...stateRef.current.page, shapes: updatedShapes })
-        if (e.cancelable) e.preventDefault()
-        return
+          return { ...s, x, y, width, height };
+        });
+        stateRef.current.onUpdate({
+          ...stateRef.current.page,
+          shapes: updatedShapes,
+        });
+        if (e.cancelable) e.preventDefault();
+        return;
       }
 
       // Lasso resize in progress
       if (isResizingSelectionRef.current && dragStartPosRef.current) {
-        if (e.cancelable) e.preventDefault()
-        const anchor = resizeAnchorRef.current
-        const startPos = dragStartPosRef.current
+        if (e.cancelable) e.preventDefault();
+        const anchor = resizeAnchorRef.current;
+        const startPos = dragStartPosRef.current;
         // Original distance from anchor to drag start
-        const origDx = startPos.x - anchor.x
-        const origDy = startPos.y - anchor.y
+        const origDx = startPos.x - anchor.x;
+        const origDy = startPos.y - anchor.y;
         // Current distance from anchor to mouse
-        const curDx = pos.x - anchor.x
-        const curDy = pos.y - anchor.y
-        const sx = Math.abs(origDx) > 1 ? curDx / origDx : 1
-        const sy = Math.abs(origDy) > 1 ? curDy / origDy : 1
-        resizeScaleRef.current = { sx: Math.max(0.1, sx), sy: Math.max(0.1, sy) }
-        return
+        const curDx = pos.x - anchor.x;
+        const curDy = pos.y - anchor.y;
+        const sx = Math.abs(origDx) > 1 ? curDx / origDx : 1;
+        const sy = Math.abs(origDy) > 1 ? curDy / origDy : 1;
+        resizeScaleRef.current = {
+          sx: Math.max(0.1, sx),
+          sy: Math.max(0.1, sy),
+        };
+        return;
       }
 
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
-        if (e.cancelable) e.preventDefault()
-        const dx = pos.x - dragStartPosRef.current.x
-        const dy = pos.y - dragStartPosRef.current.y
-        dragOffsetRef.current = { x: dx, y: dy }
-        return
+        if (e.cancelable) e.preventDefault();
+        const dx = pos.x - dragStartPosRef.current.x;
+        const dy = pos.y - dragStartPosRef.current.y;
+        dragOffsetRef.current = { x: dx, y: dy };
+        return;
       }
 
-      if (!isDrawingRef.current) return
-      if (e.cancelable) e.preventDefault()
+      if (!isDrawingRef.current) return;
+      if (e.cancelable) e.preventDefault();
 
-      if (cursorRef.current && stateRef.current.activeTool === 'eraser') {
-        const diameter = stateRef.current.activeSize
-        cursorRef.current.style.width = `${diameter}px`
-        cursorRef.current.style.height = `${diameter}px`
-        cursorRef.current.style.marginLeft = `${-diameter / 2}px`
-        cursorRef.current.style.marginTop = `${-diameter / 2}px`
-        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+      if (cursorRef.current && stateRef.current.activeTool === "eraser") {
+        const diameter = stateRef.current.activeSize;
+        cursorRef.current.style.width = `${diameter}px`;
+        cursorRef.current.style.height = `${diameter}px`;
+        cursorRef.current.style.marginLeft = `${-diameter / 2}px`;
+        cursorRef.current.style.marginTop = `${-diameter / 2}px`;
+        cursorRef.current.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
       }
 
       if (isStraightLineModeRef.current) {
         // Update the end point of the straight line
         if (pointsRef.current.length >= 1) {
-          const startPoint = pointsRef.current[0]
-          pointsRef.current = [startPoint, pos]
+          const startPoint = pointsRef.current[0];
+          pointsRef.current = [startPoint, pos];
         }
       } else {
-        pointsRef.current.push(pos)
+        pointsRef.current.push(pos);
 
-
-
-        if (stateRef.current.activeTool === 'eraser') {
-          const radius = stateRef.current.activeSize / 2
+        if (stateRef.current.activeTool === "eraser") {
+          const radius = stateRef.current.activeSize / 2;
           const newlyErased = stateRef.current.page.strokes
-            .filter(s => !stateRef.current.erasedStrokeIds.includes(s.id) && isStrokeHitByCircle(s, pos, radius))
-            .map(s => s.id)
+            .filter(
+              (s) =>
+                !stateRef.current.erasedStrokeIds.includes(s.id) &&
+                isStrokeHitByCircle(s, pos, radius),
+            )
+            .map((s) => s.id);
 
           if (newlyErased.length > 0) {
-            setErasedStrokeIds(prev => [...prev, ...newlyErased])
+            setErasedStrokeIds((prev) => [...prev, ...newlyErased]);
           }
         }
 
         // Reset hold detection on move if not yet snapped
         if (holdTimeoutRef.current) {
-          window.clearTimeout(holdTimeoutRef.current)
-          holdTimeoutRef.current = null
+          window.clearTimeout(holdTimeoutRef.current);
+          holdTimeoutRef.current = null;
 
           // Restart timeout
-          if (stateRef.current.activeTool === 'pen' || stateRef.current.activeTool === 'crayon') {
+          if (
+            stateRef.current.activeTool === "pen" ||
+            stateRef.current.activeTool === "crayon"
+          ) {
             const timeoutId = window.setTimeout(() => {
               if (isDrawingRef.current && pointsRef.current.length >= 2) {
-                isStraightLineModeRef.current = true
-                const startPoint = pointsRef.current[0]
-                const endPoint = pointsRef.current[pointsRef.current.length - 1]
-                pointsRef.current = [startPoint, endPoint]
+                isStraightLineModeRef.current = true;
+                const startPoint = pointsRef.current[0];
+                const endPoint =
+                  pointsRef.current[pointsRef.current.length - 1];
+                pointsRef.current = [startPoint, endPoint];
               }
-            }, 500)
-            holdTimeoutRef.current = timeoutId
+            }, 500);
+            holdTimeoutRef.current = timeoutId;
           }
         }
       }
 
       requestIdleCallback(() => {
-        if (forceEl) forceEl.textContent = 'force = N/A'
-        const touch = (e as TouchEvent).touches ? (e as TouchEvent).touches[0] : null
+        if (forceEl) forceEl.textContent = "force = N/A";
+        const touch = (e as TouchEvent).touches
+          ? (e as TouchEvent).touches[0]
+          : null;
         if (touchesEl && touch) {
-          touchesEl.innerHTML = `type: ${(touch as any).touchType || 'unknown'}`
+          touchesEl.innerHTML = `type: ${(touch as any).touchType || "unknown"}`;
         }
-      })
-    }
+      });
+    };
 
     const handleUp = () => {
-      if (stateRef.current.activeTool === 'select') {
+      if (stateRef.current.activeTool === "select") {
         if (stateRef.current.selectedShapeId && stateRef.current.activeHandle) {
-          if (stateRef.current.onOperation && JSON.stringify(oldShapesRef.current) !== JSON.stringify(stateRef.current.page.shapes)) {
+          if (
+            stateRef.current.onOperation &&
+            JSON.stringify(oldShapesRef.current) !==
+              JSON.stringify(stateRef.current.page.shapes)
+          ) {
             stateRef.current.onOperation({
-              type: 'bulk-update',
+              type: "bulk-update",
               pageId: stateRef.current.page.id,
               oldStrokes: stateRef.current.page.strokes,
               newStrokes: stateRef.current.page.strokes,
               oldShapes: oldShapesRef.current,
-              newShapes: stateRef.current.page.shapes
-            })
+              newShapes: stateRef.current.page.shapes,
+            });
           }
         }
-        setActiveHandle(null)
-        isDrawingRef.current = false
-        return
+        setActiveHandle(null);
+        isDrawingRef.current = false;
+        return;
       }
 
       // Commit lasso resize
       if (isResizingSelectionRef.current) {
-        isResizingSelectionRef.current = false
-        const { sx, sy } = resizeScaleRef.current
-        const anchor = resizeAnchorRef.current
+        isResizingSelectionRef.current = false;
+        const { sx, sy } = resizeScaleRef.current;
+        const anchor = resizeAnchorRef.current;
 
         if (sx !== 1 || sy !== 1) {
-          const oldStrokes = stateRef.current.page.strokes
-          const oldShapes = stateRef.current.page.shapes || []
+          const oldStrokes = stateRef.current.page.strokes;
+          const oldShapes = stateRef.current.page.shapes || [];
 
-          const updatedStrokes = oldStrokes.map(s => {
+          const updatedStrokes = oldStrokes.map((s) => {
             if (stateRef.current.selectedStrokeIds.includes(s.id)) {
               return {
                 ...s,
-                points: s.points.map(p => ({
+                points: s.points.map((p) => ({
                   x: anchor.x + (p.x - anchor.x) * sx,
-                  y: anchor.y + (p.y - anchor.y) * sy
-                }))
-              }
+                  y: anchor.y + (p.y - anchor.y) * sy,
+                })),
+              };
             }
-            return s
-          })
+            return s;
+          });
 
-          const updatedShapes = oldShapes.map(s => {
+          const updatedShapes = oldShapes.map((s) => {
             if (stateRef.current.selectedLassoShapeIds.includes(s.id)) {
               return {
                 ...s,
                 x: anchor.x + (s.x - anchor.x) * sx,
                 y: anchor.y + (s.y - anchor.y) * sy,
                 width: Math.abs(s.width * sx),
-                height: Math.abs(s.height * sy)
-              }
+                height: Math.abs(s.height * sy),
+              };
             }
-            return s
-          })
+            return s;
+          });
 
           if (stateRef.current.onOperation) {
             stateRef.current.onOperation({
-              type: 'bulk-update',
+              type: "bulk-update",
               pageId: stateRef.current.page.id,
               oldStrokes,
               newStrokes: updatedStrokes,
               oldShapes,
-              newShapes: updatedShapes
-            })
+              newShapes: updatedShapes,
+            });
           } else {
-            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: updatedStrokes, shapes: updatedShapes })
+            stateRef.current.onUpdate({
+              ...stateRef.current.page,
+              strokes: updatedStrokes,
+              shapes: updatedShapes,
+            });
           }
         }
 
-        resizeScaleRef.current = { sx: 1, sy: 1 }
-        resizeHandleRef.current = null
-        originalSelectionBoxRef.current = null
-        originalSelectedStrokesRef.current = []
-        originalSelectedShapesRef.current = []
-        dragStartPosRef.current = null
-        return
+        resizeScaleRef.current = { sx: 1, sy: 1 };
+        resizeHandleRef.current = null;
+        originalSelectionBoxRef.current = null;
+        originalSelectedStrokesRef.current = [];
+        originalSelectedShapesRef.current = [];
+        dragStartPosRef.current = null;
+        return;
       }
 
       if (isDraggingSelectionRef.current && dragStartPosRef.current) {
-        isDraggingSelectionRef.current = false
-        const { x: dx, y: dy } = dragOffsetRef.current
+        isDraggingSelectionRef.current = false;
+        const { x: dx, y: dy } = dragOffsetRef.current;
 
         if (dx !== 0 || dy !== 0) {
-          const updatedStrokes = stateRef.current.page.strokes.map(s => {
+          const updatedStrokes = stateRef.current.page.strokes.map((s) => {
             if (stateRef.current.selectedStrokeIds.includes(s.id)) {
               return {
                 ...s,
-                points: s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy }))
-              }
+                points: s.points.map((p) => ({
+                  ...p,
+                  x: p.x + dx,
+                  y: p.y + dy,
+                })),
+              };
             }
-            return s
-          })
+            return s;
+          });
 
-          const updatedShapes = (stateRef.current.page.shapes || []).map(s => {
-            if (stateRef.current.selectedLassoShapeIds.includes(s.id)) {
-              return {
-                ...s,
-                x: s.x + dx,
-                y: s.y + dy
+          const updatedShapes = (stateRef.current.page.shapes || []).map(
+            (s) => {
+              if (stateRef.current.selectedLassoShapeIds.includes(s.id)) {
+                return {
+                  ...s,
+                  x: s.x + dx,
+                  y: s.y + dy,
+                };
               }
-            }
-            return s
-          })
+              return s;
+            },
+          );
 
           if (stateRef.current.onOperation) {
             stateRef.current.onOperation({
-              type: 'bulk-update',
+              type: "bulk-update",
               pageId: stateRef.current.page.id,
               oldStrokes: stateRef.current.page.strokes,
               newStrokes: updatedStrokes,
               oldShapes: stateRef.current.page.shapes || [],
-              newShapes: updatedShapes
-            })
+              newShapes: updatedShapes,
+            });
           } else {
-            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: updatedStrokes, shapes: updatedShapes })
+            stateRef.current.onUpdate({
+              ...stateRef.current.page,
+              strokes: updatedStrokes,
+              shapes: updatedShapes,
+            });
           }
         }
-        dragOffsetRef.current = { x: 0, y: 0 }
-        dragStartPosRef.current = null
-        return
+        dragOffsetRef.current = { x: 0, y: 0 };
+        dragStartPosRef.current = null;
+        return;
       }
 
-      if (!isDrawingRef.current) return
-      isDrawingRef.current = false
+      if (!isDrawingRef.current) return;
+      isDrawingRef.current = false;
       if (holdTimeoutRef.current) {
-        window.clearTimeout(holdTimeoutRef.current)
-        holdTimeoutRef.current = null
+        window.clearTimeout(holdTimeoutRef.current);
+        holdTimeoutRef.current = null;
       }
-      isStraightLineModeRef.current = false
+      isStraightLineModeRef.current = false;
 
       if (pointsRef.current.length >= 2) {
-        if (stateRef.current.activeTool === 'laser') {
-          laserStrokesRef.current.push({ points: [...pointsRef.current], timestamp: Date.now() })
-        } else if (stateRef.current.activeTool === 'lasso') {
-          const lassoPolygon = [...pointsRef.current]
+        if (stateRef.current.activeTool === "laser") {
+          laserStrokesRef.current.push({
+            points: [...pointsRef.current],
+            timestamp: Date.now(),
+          });
+        } else if (stateRef.current.activeTool === "lasso") {
+          const lassoPolygon = [...pointsRef.current];
 
-          let hasChanges = false
-          const newStrokes: Stroke[] = []
-          const newSelectedIds: string[] = []
+          let hasChanges = false;
+          const newStrokes: Stroke[] = [];
+          const newSelectedIds: string[] = [];
 
           for (let i = 0; i < stateRef.current.page.strokes.length; i++) {
-            const s = stateRef.current.page.strokes[i]
+            const s = stateRef.current.page.strokes[i];
 
-            if (s.tool !== 'eraser' && isStrokeInPolygon(s, lassoPolygon)) {
-              const relevantErasers = stateRef.current.page.strokes.slice(i + 1).filter(e => e.tool === 'eraser')
+            if (s.tool !== "eraser" && isStrokeInPolygon(s, lassoPolygon)) {
+              const relevantErasers = stateRef.current.page.strokes
+                .slice(i + 1)
+                .filter((e) => e.tool === "eraser");
 
               if (relevantErasers.length > 0) {
-                const fragments = splitStroke(s, relevantErasers)
+                const fragments = splitStroke(s, relevantErasers);
                 if (fragments.length === 1 && fragments[0] === s) {
-                  newStrokes.push(s)
-                  newSelectedIds.push(s.id)
+                  newStrokes.push(s);
+                  newSelectedIds.push(s.id);
                 } else {
-                  hasChanges = true
-                  newStrokes.push(...fragments)
-                  fragments.forEach(f => newSelectedIds.push(f.id))
+                  hasChanges = true;
+                  newStrokes.push(...fragments);
+                  fragments.forEach((f) => newSelectedIds.push(f.id));
                 }
               } else {
-                newStrokes.push(s)
-                newSelectedIds.push(s.id)
+                newStrokes.push(s);
+                newSelectedIds.push(s.id);
               }
             } else {
-              newStrokes.push(s)
+              newStrokes.push(s);
             }
           }
 
           const selectedLassoShapes = stateRef.current.lassoPicksShapes
-            ? (stateRef.current.page.shapes || []).filter(s => isShapeInPolygon(s, lassoPolygon))
-            : []
+            ? (stateRef.current.page.shapes || []).filter((s) =>
+                isShapeInPolygon(s, lassoPolygon),
+              )
+            : [];
 
-          if (hasChanges || selectedLassoShapes.length > 0 || newSelectedIds.length > 0) {
+          if (
+            hasChanges ||
+            selectedLassoShapes.length > 0 ||
+            newSelectedIds.length > 0
+          ) {
             if (hasChanges) {
-                if (stateRef.current.onOperation) {
-                  stateRef.current.onOperation({ type: 'bulk-update', pageId: stateRef.current.page.id, oldStrokes: stateRef.current.page.strokes, newStrokes })
-                } else {
-                  stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
-                }
+              if (stateRef.current.onOperation) {
+                stateRef.current.onOperation({
+                  type: "bulk-update",
+                  pageId: stateRef.current.page.id,
+                  oldStrokes: stateRef.current.page.strokes,
+                  newStrokes,
+                });
+              } else {
+                stateRef.current.onUpdate({
+                  ...stateRef.current.page,
+                  strokes: newStrokes,
+                });
               }
-              setSelectedStrokeIds(newSelectedIds)
-              setSelectedLassoShapeIds(selectedLassoShapes.map(s => s.id))
-            } else {
-              setSelectedStrokeIds([])
-              setSelectedLassoShapeIds([])
             }
-          } else if (stateRef.current.activeTool !== 'eraser') {
+            setSelectedStrokeIds(newSelectedIds);
+            setSelectedLassoShapeIds(selectedLassoShapes.map((s) => s.id));
+          } else {
+            setSelectedStrokeIds([]);
+            setSelectedLassoShapeIds([]);
+          }
+        } else if (stateRef.current.activeTool !== "eraser") {
           const stroke: Stroke = {
             id: crypto.randomUUID(),
             points: [...pointsRef.current],
             color: stateRef.current.activeColor,
             tool: stateRef.current.activeTool,
-            size: stateRef.current.activeSize
-          }
-          if (stateRef.current.onOperation) {
-            stateRef.current.onOperation({ type: 'add', pageId: stateRef.current.page.id, stroke })
-          } else {
-            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: [...stateRef.current.page.strokes, stroke] })
-          }
-        }
-      }
-
-      if (stateRef.current.activeTool === 'eraser') {
-        if (stateRef.current.erasedStrokeIds.length > 0) {
-          const newStrokes = stateRef.current.page.strokes.filter(s => !stateRef.current.erasedStrokeIds.includes(s.id))
+            size: stateRef.current.activeSize,
+          };
           if (stateRef.current.onOperation) {
             stateRef.current.onOperation({
-              type: 'bulk-update',
+              type: "add",
               pageId: stateRef.current.page.id,
-              oldStrokes: stateRef.current.page.strokes,
-              newStrokes
-            })
+              stroke,
+            });
           } else {
-            stateRef.current.onUpdate({ ...stateRef.current.page, strokes: newStrokes })
+            stateRef.current.onUpdate({
+              ...stateRef.current.page,
+              strokes: [...stateRef.current.page.strokes, stroke],
+            });
           }
         }
-        setErasedStrokeIds([])
       }
-      pointsRef.current = []
-    }
 
-    canvas.addEventListener('touchstart', handleDown, { passive: false })
-    canvas.addEventListener('touchmove', handleMove, { passive: false })
-    canvas.addEventListener('touchend', handleUp)
-    canvas.addEventListener('touchcancel', handleUp)
+      if (stateRef.current.activeTool === "eraser") {
+        if (stateRef.current.erasedStrokeIds.length > 0) {
+          const newStrokes = stateRef.current.page.strokes.filter(
+            (s) => !stateRef.current.erasedStrokeIds.includes(s.id),
+          );
+          if (stateRef.current.onOperation) {
+            stateRef.current.onOperation({
+              type: "bulk-update",
+              pageId: stateRef.current.page.id,
+              oldStrokes: stateRef.current.page.strokes,
+              newStrokes,
+            });
+          } else {
+            stateRef.current.onUpdate({
+              ...stateRef.current.page,
+              strokes: newStrokes,
+            });
+          }
+        }
+        setErasedStrokeIds([]);
+      }
+      pointsRef.current = [];
+    };
 
-    canvas.addEventListener('mousedown', handleDown)
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
+    canvas.addEventListener("touchstart", handleDown, { passive: false });
+    canvas.addEventListener("touchmove", handleMove, { passive: false });
+    canvas.addEventListener("touchend", handleUp);
+    canvas.addEventListener("touchcancel", handleUp);
 
-    canvas.addEventListener('mousemove', handlePointerMove)
-    canvas.addEventListener('mouseleave', handlePointerLeave)
+    canvas.addEventListener("mousedown", handleDown);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
 
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+    canvas.addEventListener("mousemove", handlePointerMove);
+    canvas.addEventListener("mouseleave", handlePointerLeave);
+
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
     return () => {
-      canvas.removeEventListener('touchstart', handleDown)
-      canvas.removeEventListener('touchmove', handleMove)
-      canvas.removeEventListener('touchend', handleUp)
-      canvas.removeEventListener('touchcancel', handleUp)
+      canvas.removeEventListener("touchstart", handleDown);
+      canvas.removeEventListener("touchmove", handleMove);
+      canvas.removeEventListener("touchend", handleUp);
+      canvas.removeEventListener("touchcancel", handleUp);
 
-      canvas.removeEventListener('mousedown', handleDown)
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
+      canvas.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
 
-      canvas.removeEventListener('mousemove', handlePointerMove)
-      canvas.removeEventListener('mouseleave', handlePointerLeave)
-    }
-  }, [activeTool, width, height])
+      canvas.removeEventListener("mousemove", handlePointerMove);
+      canvas.removeEventListener("mouseleave", handlePointerLeave);
+    };
+  }, [activeTool, width, height]);
 
   function handleTextFieldUpdate(id: string, text: string) {
     onUpdate({
       ...page,
-      textFields: (page.textFields || []).map((tf) => (tf.id === id ? { ...tf, text } : tf))
-    })
+      textFields: (page.textFields || []).map((tf) =>
+        tf.id === id ? { ...tf, text } : tf,
+      ),
+    });
   }
 
   function handleTextFieldDelete(id: string) {
     onUpdate({
       ...page,
-      textFields: (page.textFields || []).filter((tf) => tf.id !== id)
-    })
+      textFields: (page.textFields || []).filter((tf) => tf.id !== id),
+    });
   }
 
   return (
@@ -1209,8 +1582,8 @@ export default function EditablePage({
       style={{
         width: width * scale,
         height: height * scale,
-        overflow: 'hidden',
-        margin: '0 auto',
+        overflow: "hidden",
+        margin: "0 auto",
       }}
     >
       <div
@@ -1218,8 +1591,8 @@ export default function EditablePage({
           width: width,
           height: height,
           transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          position: 'relative',
+          transformOrigin: "top left",
+          position: "relative",
         }}
       >
         <Paper
@@ -1234,13 +1607,22 @@ export default function EditablePage({
           width={width}
           height={height}
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: 0,
             top: 0,
             width: width,
             height: height,
-            touchAction: 'manipulation',
-            cursor: activeTool === 'select' ? 'default' : activeTool === 'text' ? 'text' : activeTool === 'eraser' ? 'none' : activeTool === 'laser' ? 'crosshair' : 'crosshair',
+            touchAction: "manipulation",
+            cursor:
+              activeTool === "select"
+                ? "default"
+                : activeTool === "text"
+                  ? "text"
+                  : activeTool === "eraser"
+                    ? "none"
+                    : activeTool === "laser"
+                      ? "crosshair"
+                      : "crosshair",
           }}
         />
         <canvas
@@ -1248,32 +1630,33 @@ export default function EditablePage({
           width={width}
           height={height}
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: 0,
             top: 0,
             width: width,
             height: height,
-            pointerEvents: 'none',
+            pointerEvents: "none",
             zIndex: 5,
           }}
         />
-        {activeTool === 'eraser' && (
+        {activeTool === "eraser" && (
           <div
             ref={cursorRef}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
               width: 0, // Set dynamically
               height: 0, // Set dynamically
-              border: '2px solid rgba(0,0,0,0.3)',
-              borderRadius: '50%',
-              pointerEvents: 'none',
+              border: "2px solid rgba(0,0,0,0.3)",
+              borderRadius: "50%",
+              pointerEvents: "none",
               zIndex: 100,
-              display: 'none',
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-              boxShadow: '0 0 0 1px rgba(255,255,255,0.8), inset 0 0 8px rgba(0,0,0,0.1)',
-              backdropFilter: 'contrast(1.1) brightness(1.1)', // Subtle magnification look
+              display: "none",
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              boxShadow:
+                "0 0 0 1px rgba(255,255,255,0.8), inset 0 0 8px rgba(0,0,0,0.1)",
+              backdropFilter: "contrast(1.1) brightness(1.1)", // Subtle magnification look
             }}
           />
         )}
@@ -1289,5 +1672,5 @@ export default function EditablePage({
         ))}
       </div>
     </div>
-  )
+  );
 }
