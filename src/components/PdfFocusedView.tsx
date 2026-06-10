@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Loader from './Loader'
 import { getPDFFile, getPDFAnnotation, savePDFAnnotation } from '../storage/db'
 import type { PDFFile, PDFAnnotation, ToolType, Stroke, TextField, Shape, Operation, ShapeType } from '../types'
-import { getPDFPageCount, getPDFPageDimensions } from '../utils/pdf'
+import { getPDFPageCountAndDimensions } from '../utils/pdf'
 import { exportAnnotatedPDF } from '../utils/export'
 import EditablePage from './EditablePage'
 
@@ -46,21 +46,18 @@ const PdfFocusedView: React.FC<PdfFocusedViewProps> = ({
                 return
             }
             setPdfFile(file)
-            const count = await getPDFPageCount(file.blob)
+            const { pageCount: count, dimensions: dims } = await getPDFPageCountAndDimensions(pdfFileId, file.blob)
             setPageCount(count)
-
-            const dims: Record<number, { width: number, height: number }> = {}
-            const initialAnnotations: Record<number, PDFAnnotation> = {}
-
-            for (let i = 1; i <= count; i++) {
-                const [dim, ann] = await Promise.all([
-                    getPDFPageDimensions(file.blob, i),
-                    getPDFAnnotation(`${pdfFileId}_${i}`)
-                ])
-                if (dim) dims[i] = dim
-                if (ann) initialAnnotations[i] = ann
-            }
             setPageDimensions(dims)
+
+            const initialAnnotations: Record<number, PDFAnnotation> = {}
+            const annotationPromises = Array.from({ length: count }, (_, i) => i + 1).map(async (i) => {
+                const ann = await getPDFAnnotation(`${pdfFileId}_${i}`)
+                if (ann) {
+                    initialAnnotations[i] = ann
+                }
+            })
+            await Promise.all(annotationPromises)
             setAnnotations(initialAnnotations)
             setLoading(false)
         }

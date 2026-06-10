@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument, rgb, LineCapStyle } from 'pdf-lib'
 import download from 'downloadjs'
 import type { Notebook, Page, Stroke, TextField, Shape, PDFFile } from '../types'
 import { getPDFFile } from '../storage/db'
@@ -135,28 +135,34 @@ function drawAnnotationsOnPage(
         for (const fragment of fragments) {
             if (fragment.points.length < 2) continue
 
-            // Step 1: Interpolate points adaptively so circles overlap seamlessly
+            // Step 1: Interpolate points adaptively so the curve is perfectly smooth
             const smoothPoints = interpolateStrokePointsForHandwriting(
                 fragment.points,
                 stroke.size,
                 { x: scaleX, y: scaleY }
             )
 
-            // Step 2: Draw a filled circle at every point
-            for (const point of smoothPoints) {
-                // Use fixed stroke size since we removed pressure
-                const radius = stroke.size * 0.5 * scaleX
+            if (smoothPoints.length < 2) continue
 
-                pdfPage.drawEllipse({
-                    x: point.x * scaleX,
-                    y: height - point.y * scaleY,
-                    xScale: radius,
-                    yScale: radius,
-                    color: rgb(color.r, color.g, color.b),
-                    opacity: opacity,
-                    borderWidth: 0, // filled ellipse
-                })
-            }
+            // Step 2: Construct the SVG path data using raw canvas coordinates.
+            // NOTE: drawSvgPath applies scale(1, -1) internally to flip SVG's
+            // top-down Y axis to PDF's bottom-up Y axis. We must NOT pre-flip.
+            // We pass x scaled, y scaled (no height subtraction).
+            const pathData = smoothPoints
+                .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${(p.x * scaleX).toFixed(1)} ${(p.y * scaleY).toFixed(1)}`)
+                .join(' ')
+
+            // Step 3: Draw the stroke as a single vector path with round line caps.
+            // x: 0 anchors horizontally, y: height positions the flip origin at
+            // the top of the page so coordinates map correctly after scale(1,-1).
+            pdfPage.drawSvgPath(pathData, {
+                x: 0,
+                y: height,
+                borderColor: rgb(color.r, color.g, color.b),
+                borderWidth: stroke.size * scaleX,
+                borderLineCap: LineCapStyle.Round,
+                borderOpacity: opacity,
+            })
         }
     }
 

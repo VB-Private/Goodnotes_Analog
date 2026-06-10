@@ -1,8 +1,7 @@
 import { useRef, useEffect } from 'react'
 import type { PageTemplate } from '../types'
 import { getPDFFile } from '../storage/db'
-import * as pdfjsLib from 'pdfjs-dist'
-import '../utils/pdf' // Import to ensure worker is set up
+import { getCachedPDF } from '../utils/pdf'
 
 const PAPER_BG = '#fafaf8'
 const LINE_COLOR = 'rgba(0,0,0,0.12)'
@@ -78,9 +77,7 @@ export default function Paper({ template, width, height, pdfFileId, pdfPageNumbe
           const pdfFile = await getPDFFile(pdfFileId)
           if (!pdfFile || isCancelled) return
 
-          const arrayBuffer = await pdfFile.blob.arrayBuffer()
-          const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
-          const pdf = await loadingTask.promise
+          const pdf = await getCachedPDF(pdfFileId, pdfFile.blob)
           if (isCancelled) return
 
           const page = await pdf.getPage(pdfPageNumber)
